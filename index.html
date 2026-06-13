@@ -3,1161 +3,761 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Harris Hawks Optimization — Interactive Visualizer</title>
+<title>Harris Hawks Optimization — Live Hunt</title>
 <style>
-/* ── Reset & tokens ─────────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-:root {
-  --bg:       #040c18;
-  --surface:  #07111f;
-  --panel:    #0b1a30;
-  --border:   #162d4e;
-  --border2:  #1e3d68;
-  --text:     #c4d8f4;
-  --dim:      #4a6a90;
-  --bright:   #e8f2ff;
-  --gold:     #fbbf24;
-  --gold2:    #f59e0b;
-  --accent:   #3b82f6;
-  --green:    #10b981;
-  --red:      #ef4444;
-
-  --s0: #8b5cf6;
-  --s1: #3b82f6;
-  --s2: #10b981;
-  --s3: #ef4444;
-  --s4: #f59e0b;
-  --s5: #ec4899;
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+:root{
+  --bg:#040b16; --surface:#07111f; --panel:#0b1a30; --panel2:#0e2240;
+  --border:#16304f; --border2:#22497a; --text:#cfe0f7; --dim:#5a7aa0;
+  --bright:#eaf3ff; --gold:#fbbf24;
+  --s0:#a78bfa; --s1:#60a5fa; --s2:#34d399; --s3:#f87171; --s4:#fbbf24; --s5:#f472b6;
+}
+body{
+  background:radial-gradient(ellipse at 50% -10%,#0a1c34 0%,var(--bg) 60%);
+  color:var(--text);
+  font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+  font-size:13px;
+  display:grid;
+  grid-template-rows:auto auto 1fr;
+  height:100vh;
 }
 
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-  font-size: 13px;
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-  overflow-x: hidden;
+/* ── Header ─────────────────────────────────────────── */
+.header{
+  display:flex;align-items:center;gap:14px;
+  padding:0 18px;height:54px;
+  background:linear-gradient(180deg,#0c1e38,#0a1729);
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
 }
+.logo{display:flex;align-items:center;gap:11px}
+.logo-mark{
+  width:36px;height:36px;border-radius:9px;
+  background:linear-gradient(135deg,#1d3a63,#2f63b8);
+  display:flex;align-items:center;justify-content:center;font-size:20px;
+  box-shadow:0 0 18px rgba(47,99,184,.4);
+}
+.logo h1{font-size:15px;font-weight:700;color:var(--bright);letter-spacing:.3px}
+.logo .sub{font-size:11px;color:var(--dim)}
+.h-spacer{flex:1}
 
-/* ── Header ─────────────────────────────────────────────────── */
-.header {
-  background: var(--panel);
-  border-bottom: 1px solid var(--border);
-  padding: 0 20px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  height: 52px;
-  flex-shrink: 0;
+/* view toggle */
+.view-toggle{display:flex;background:#0a1828;border:1px solid var(--border);border-radius:9px;overflow:hidden}
+.view-toggle button{
+  background:transparent;border:none;color:var(--dim);
+  padding:7px 16px;font-size:12px;font-weight:600;cursor:pointer;
+  transition:all .15s;letter-spacing:.5px;
 }
-.header-logo {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.hawk-icon {
-  width: 32px; height: 32px;
-  background: linear-gradient(135deg, #1e3a5f, #3b82f6);
-  border-radius: 8px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 18px;
-}
-.header h1 { font-size: 15px; font-weight: 700; color: var(--bright); letter-spacing: .3px; }
-.header-sub { font-size: 11px; color: var(--dim); }
-.header-spacer { flex: 1; }
-.phase-badge {
-  padding: 4px 12px;
-  border-radius: 20px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: .5px;
-  text-transform: uppercase;
-  border: 1px solid;
-  transition: all .3s;
-}
-.phase-badge.explore { background: rgba(59,130,246,.15); border-color: #3b82f6; color: #60a5fa; }
-.phase-badge.transit { background: rgba(245,158,11,.15); border-color: #f59e0b; color: #fbbf24; }
-.phase-badge.exploit { background: rgba(239,68,68,.15); border-color: #ef4444; color: #f87171; }
+.view-toggle button.active{background:linear-gradient(135deg,#1d3a63,#2f63b8);color:#fff}
 
-/* ── Function selector ──────────────────────────────────────── */
-.fn-bar {
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  padding: 10px 20px;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  overflow-x: auto;
-  flex-shrink: 0;
+.phase-badge{
+  padding:5px 14px;border-radius:20px;font-size:11px;font-weight:700;
+  letter-spacing:.6px;text-transform:uppercase;border:1px solid;transition:all .3s;
 }
-.fn-bar-label { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: 1px; margin-right: 4px; white-space: nowrap; }
-.fn-card {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  padding: 7px 14px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--panel);
-  cursor: pointer;
-  transition: all .15s;
-  white-space: nowrap;
-  min-width: 120px;
-}
-.fn-card:hover { border-color: var(--border2); background: #0f2040; }
-.fn-card.active { border-color: var(--accent); background: rgba(59,130,246,.12); }
-.fn-card .fn-name { font-size: 12px; font-weight: 600; color: var(--bright); }
-.fn-card .fn-desc { font-size: 10px; color: var(--dim); margin-top: 2px; }
-.fn-card .fn-min { font-size: 10px; color: var(--gold); margin-top: 1px; }
+.phase-badge.explore{background:rgba(96,165,250,.15);border-color:#60a5fa;color:#93c5fd}
+.phase-badge.transit{background:rgba(251,191,36,.15);border-color:#fbbf24;color:#fcd34d}
+.phase-badge.exploit{background:rgba(248,113,113,.15);border-color:#f87171;color:#fca5a5}
 
-/* ── Main layout ─────────────────────────────────────────────── */
-.main {
-  display: grid;
-  grid-template-columns: 1fr 300px;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
+/* ── Function bar ───────────────────────────────────── */
+.fn-bar{
+  display:flex;align-items:center;gap:8px;
+  padding:9px 18px;background:var(--surface);
+  border-bottom:1px solid var(--border);flex-shrink:0;overflow:hidden;
 }
+.fn-bar .lbl{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;white-space:nowrap;margin-right:2px}
+.fn-card{
+  flex:1;min-width:0;
+  padding:6px 12px;border-radius:9px;border:1px solid var(--border);
+  background:var(--panel);cursor:pointer;transition:all .15s;
+}
+.fn-card:hover{border-color:var(--border2);background:var(--panel2)}
+.fn-card.active{border-color:#3b82f6;background:rgba(59,130,246,.13);box-shadow:0 0 12px rgba(59,130,246,.15)}
+.fn-card .n{font-size:12px;font-weight:700;color:var(--bright)}
+.fn-card .d{font-size:10px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-/* ── Canvas area ─────────────────────────────────────────────── */
-.canvas-col {
-  display: flex;
-  flex-direction: column;
-  padding: 16px;
-  gap: 10px;
-  min-height: 0;
-  overflow: hidden;
-}
-.canvas-wrap {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-}
-#mainCanvas {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-}
+/* ── Body ───────────────────────────────────────────── */
+.body{display:grid;grid-template-columns:1fr 312px;min-height:0;overflow:hidden}
 
-/* ── Convergence + info row ─────────────────────────────────── */
-.bottom-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  height: 100px;
+/* stage */
+.stage{position:relative;padding:14px;min-height:0;display:flex;flex-direction:column;gap:10px;overflow:hidden}
+.canvas-wrap{position:relative;flex:1;min-height:0;border-radius:12px;overflow:hidden;border:1px solid var(--border);background:#030912}
+#mainCanvas{display:block;width:100%;height:100%}
+.canvas-hint{
+  position:absolute;bottom:10px;left:12px;
+  font-size:10px;color:var(--dim);background:rgba(4,11,22,.7);
+  padding:4px 9px;border-radius:6px;border:1px solid var(--border);pointer-events:none;
 }
-.mini-panel {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.legend-float{
+  position:absolute;top:10px;left:12px;display:flex;flex-direction:column;gap:3px;
+  background:rgba(4,11,22,.62);padding:8px 10px;border-radius:8px;border:1px solid var(--border);
 }
-.mini-title { font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: .8px; }
-#convCanvas { flex: 1; width: 100%; display: block; }
+.legend-float .lf-row{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text)}
+.legend-float .lf-dot{width:8px;height:8px;border-radius:50%}
+.legend-float .lf-rab{width:9px;height:9px;background:var(--gold);transform:rotate(45deg);border-radius:1px}
 
-/* stat pills */
-.stat-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.stat-pill {
-  display: flex; flex-direction: column; align-items: center;
-  background: #0a1828; border-radius: 6px; padding: 4px 10px;
-  border: 1px solid var(--border);
-  min-width: 64px;
-}
-.stat-val { font-size: 16px; font-weight: 700; color: var(--bright); line-height: 1.1; }
-.stat-lbl { font-size: 9px; color: var(--dim); margin-top: 2px; }
+/* bottom strip: convergence + stats */
+.strip{display:grid;grid-template-columns:1.4fr 1fr;gap:10px;height:108px;flex-shrink:0}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:9px 12px;display:flex;flex-direction:column;gap:5px;min-height:0}
+.card .ttl{font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.9px;flex-shrink:0}
+#convCanvas{flex:1;width:100%;display:block;min-height:0}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;flex:1}
+.stat{background:#091624;border:1px solid var(--border);border-radius:7px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+.stat .v{font-size:16px;font-weight:800;color:var(--bright);line-height:1}
+.stat .k{font-size:9px;color:var(--dim)}
 
-/* ── Sidebar ─────────────────────────────────────────────────── */
-.sidebar {
-  border-left: 1px solid var(--border);
-  background: var(--surface);
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-}
-.sb-section {
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--border);
-}
-.sb-title {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  color: var(--dim);
-  margin-bottom: 10px;
-}
+/* ── Sidebar ────────────────────────────────────────── */
+.sidebar{border-left:1px solid var(--border);background:var(--surface);display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.sb{padding:12px 15px;border-bottom:1px solid var(--border);flex-shrink:0}
+.sb-t{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-bottom:9px;display:flex;align-items:center;gap:6px}
 
-/* Controls */
-.btn-row { display: flex; gap: 6px; margin-bottom: 12px; }
-.btn {
-  display: flex; align-items: center; gap: 5px;
-  background: #0f2040; border: 1px solid var(--border);
-  color: var(--text); padding: 6px 12px;
-  border-radius: 6px; cursor: pointer;
-  font-size: 12px; font-weight: 500;
-  transition: all .15s; white-space: nowrap;
-}
-.btn:hover { background: #162d4e; border-color: var(--border2); }
-.btn.primary { background: #1e3a6e; border-color: #2d5299; color: #90c0ff; }
-.btn.primary:hover { background: #24468a; }
-.btn-icon { font-size: 13px; }
+.btn-row{display:flex;gap:6px;margin-bottom:11px}
+.btn{flex:1;display:flex;align-items:center;justify-content:center;gap:5px;
+  background:var(--panel2);border:1px solid var(--border);color:var(--text);
+  padding:8px 6px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;transition:all .15s}
+.btn:hover{background:#16335c;border-color:var(--border2)}
+.btn.primary{background:linear-gradient(135deg,#1d3a63,#2f63b8);border-color:#3b6ad4;color:#dbeafe}
+.btn.primary:hover{filter:brightness(1.15)}
 
-/* Sliders */
-.slider-block { margin-bottom: 10px; }
-.slider-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--dim); margin-bottom: 5px; }
-.slider-label span { color: var(--text); font-weight: 600; }
-input[type=range] {
-  width: 100%; appearance: none; height: 4px;
-  background: var(--border); border-radius: 2px; outline: none; cursor: pointer;
-}
-input[type=range]::-webkit-slider-thumb {
-  appearance: none; width: 14px; height: 14px;
-  border-radius: 50%; background: var(--accent); cursor: pointer;
-  box-shadow: 0 0 6px rgba(59,130,246,.5);
-}
+.slider-block{margin-bottom:9px}
+.slider-label{display:flex;justify-content:space-between;font-size:11px;color:var(--dim);margin-bottom:5px}
+.slider-label span{color:var(--text);font-weight:700}
+input[type=range]{width:100%;appearance:none;height:5px;background:var(--border);border-radius:3px;outline:none;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{appearance:none;width:15px;height:15px;border-radius:50%;background:#3b82f6;cursor:pointer;box-shadow:0 0 8px rgba(59,130,246,.6)}
 
-/* Energy */
-.energy-wrap { margin-bottom: 8px; }
-.energy-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; position: relative; }
-.energy-fill { height: 100%; border-radius: 5px; transition: width .15s, background .3s; }
-.energy-markers { display: flex; justify-content: space-between; font-size: 9px; color: var(--dim); margin-top: 3px; }
+.energy-track{height:12px;background:var(--border);border-radius:6px;overflow:hidden;position:relative}
+.energy-fill{height:100%;border-radius:6px;transition:width .15s,background .3s}
+.energy-markers{display:flex;justify-content:space-between;font-size:9px;color:var(--dim);margin-top:4px}
 
-/* Strategy legend */
-.strat-row {
-  display: flex; align-items: center; gap: 8px;
-  padding: 5px 7px; border-radius: 6px; margin-bottom: 3px;
-  transition: background .2s;
-  cursor: default;
-}
-.strat-row.dominant { background: rgba(255,255,255,.05); }
-.strat-dot {
-  width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
-}
-.strat-info { flex: 1; }
-.strat-name { font-size: 11px; color: var(--text); font-weight: 500; }
-.strat-phase { font-size: 9px; color: var(--dim); }
-.strat-bar-wrap { width: 36px; }
-.strat-bar-bg { background: var(--border); height: 4px; border-radius: 2px; overflow: hidden; }
-.strat-bar-fill { height: 100%; border-radius: 2px; transition: width .2s; }
-.strat-count { font-size: 10px; color: var(--dim); min-width: 18px; text-align: right; }
+/* rabbit card */
+.rab{background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.22);border-radius:9px;padding:9px 12px}
+.rab .hd{font-size:12px;font-weight:700;color:var(--gold);margin-bottom:6px}
+.rab .r{display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px}
+.rab .r .k{color:var(--dim)}
+.rab .r .v{color:var(--bright);font-weight:600;font-family:'Cascadia Code',monospace}
+.rab .r .v.good{color:#34d399}
 
-/* Rabbit info */
-.rabbit-card {
-  background: rgba(251,191,36,.07);
-  border: 1px solid rgba(251,191,36,.2);
-  border-radius: 8px; padding: 10px 12px;
-  margin-bottom: 6px;
-}
-.rabbit-header { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
-.rabbit-header span { font-size: 12px; font-weight: 600; color: var(--gold); }
-.rabbit-row { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 3px; }
-.rabbit-row .lbl { color: var(--dim); }
-.rabbit-row .val { color: var(--bright); font-weight: 600; font-family: monospace; }
-.rabbit-row .val.good { color: var(--green); }
+/* strategy legend */
+.strat{display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:7px;margin-bottom:2px;transition:background .2s}
+.strat.dom{background:rgba(255,255,255,.05)}
+.strat .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;box-shadow:0 0 6px currentColor}
+.strat .info{flex:1;min-width:0}
+.strat .nm{font-size:11px;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.strat .ph{font-size:9px;color:var(--dim)}
+.strat .bw{width:34px}
+.strat .bb{background:var(--border);height:4px;border-radius:2px;overflow:hidden}
+.strat .bf{height:100%;border-radius:2px;transition:width .25s}
+.strat .ct{font-size:10px;color:var(--dim);min-width:16px;text-align:right}
 
-/* Insight box */
-.insight-box {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--accent);
-  border-radius: 6px;
-  padding: 10px 12px;
-  font-size: 12px;
-  line-height: 1.55;
-  color: #a0c0e8;
-  transition: border-color .3s;
-}
-.insight-box.explore { border-left-color: var(--s1); }
-.insight-box.transit { border-left-color: var(--s4); }
-.insight-box.exploit { border-left-color: var(--s3); }
+/* insight */
+.sb.grow{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.insight{flex:1;background:var(--panel);border:1px solid var(--border);border-left:3px solid #60a5fa;border-radius:8px;padding:11px 13px;font-size:12.5px;line-height:1.6;color:#aecbed;overflow:auto;transition:border-color .3s}
+.insight.explore{border-left-color:var(--s1)}
+.insight.transit{border-left-color:var(--s4)}
+.insight.exploit{border-left-color:var(--s3)}
 
-/* Intro overlay */
-.intro {
-  position: fixed; inset: 0; z-index: 100;
-  background: rgba(4,12,24,.96);
-  display: flex; align-items: center; justify-content: center;
-}
-.intro-card {
-  background: var(--panel);
-  border: 1px solid var(--border2);
-  border-radius: 16px;
-  padding: 36px 40px;
-  max-width: 520px;
-  width: 90%;
-  box-shadow: 0 24px 80px rgba(0,0,0,.6);
-}
-.intro-card h2 { font-size: 22px; color: var(--bright); margin-bottom: 6px; }
-.intro-card .intro-sub { color: var(--dim); font-size: 13px; margin-bottom: 20px; }
-.intro-steps { list-style: none; display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
-.intro-steps li { display: flex; gap: 12px; align-items: flex-start; }
-.intro-num {
-  width: 24px; height: 24px; border-radius: 50%;
-  background: rgba(59,130,246,.2); border: 1px solid #3b82f6;
-  color: #60a5fa; font-size: 11px; font-weight: 700;
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0; margin-top: 1px;
-}
-.intro-steps li p { font-size: 12px; line-height: 1.55; color: var(--text); }
-.intro-steps li strong { color: var(--bright); }
-.intro-btn {
-  width: 100%; padding: 12px;
-  background: linear-gradient(135deg, #1e3a6e, #2d5299);
-  border: 1px solid #3b6ad4; color: #90c0ff;
-  border-radius: 8px; font-size: 14px; font-weight: 600;
-  cursor: pointer; transition: all .2s;
-}
-.intro-btn:hover { background: linear-gradient(135deg, #24468a, #3562b8); }
+/* intro */
+.intro{position:fixed;inset:0;z-index:100;background:rgba(4,11,22,.96);display:flex;align-items:center;justify-content:center}
+.intro-card{background:var(--panel);border:1px solid var(--border2);border-radius:18px;padding:34px 38px;max-width:540px;width:90%;box-shadow:0 30px 90px rgba(0,0,0,.65)}
+.intro-card h2{font-size:23px;color:var(--bright);margin-bottom:6px}
+.intro-card .isub{color:var(--dim);font-size:13px;margin-bottom:22px}
+.isteps{list-style:none;display:flex;flex-direction:column;gap:13px;margin-bottom:26px}
+.isteps li{display:flex;gap:13px;align-items:flex-start}
+.inum{width:26px;height:26px;border-radius:50%;background:rgba(59,130,246,.2);border:1px solid #3b82f6;color:#93c5fd;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.isteps li p{font-size:12.5px;line-height:1.55;color:var(--text)}
+.isteps li strong{color:var(--bright)}
+.intro-btn{width:100%;padding:13px;background:linear-gradient(135deg,#1d3a63,#2f63b8);border:1px solid #3b6ad4;color:#dbeafe;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;transition:all .2s}
+.intro-btn:hover{filter:brightness(1.15)}
 
-/* Tooltip */
-.tooltip-wrap { position: relative; display: inline-flex; }
-.tooltip-icon { width: 14px; height: 14px; border-radius: 50%; background: var(--border); color: var(--dim); font-size: 9px; display: flex; align-items: center; justify-content: center; cursor: help; }
-.tooltip-text { position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: #0f2040; border: 1px solid var(--border2); border-radius: 6px; padding: 7px 10px; font-size: 11px; color: var(--text); width: 200px; line-height: 1.5; pointer-events: none; opacity: 0; transition: opacity .15s; z-index: 50; white-space: normal; }
-.tooltip-wrap:hover .tooltip-text { opacity: 1; }
+.tip{position:relative;display:inline-flex}
+.tip .ic{width:14px;height:14px;border-radius:50%;background:var(--border);color:var(--dim);font-size:9px;display:flex;align-items:center;justify-content:center;cursor:help}
+.tip .tx{position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#0f2040;border:1px solid var(--border2);border-radius:7px;padding:8px 11px;font-size:11px;color:var(--text);width:210px;line-height:1.5;opacity:0;pointer-events:none;transition:opacity .15s;z-index:50}
+.tip:hover .tx{opacity:1}
 
-/* scrollbar */
-::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
 </style>
 </head>
 <body>
 
-<!-- Intro modal -->
+<!-- Intro -->
 <div class="intro" id="intro">
   <div class="intro-card">
     <h2>🦅 Harris Hawks Optimization</h2>
-    <p class="intro-sub">Watch a flock of hawks hunt prey — and solve complex math problems in the process.</p>
-    <ul class="intro-steps">
-      <li>
-        <div class="intro-num">1</div>
-        <p>The <strong>colored dots are hawks</strong>. They fly around a landscape looking for the lowest valley — which is the best solution to the problem.</p>
-      </li>
-      <li>
-        <div class="intro-num">2</div>
-        <p>The <strong>gold diamond is the rabbit</strong> — the best location found so far. Hawks always try to beat it.</p>
-      </li>
-      <li>
-        <div class="intro-num">3</div>
-        <p><strong>Dark colors = good regions</strong>. The hawks start scattered, then gradually converge on the darkest spot (the true answer).</p>
-      </li>
-      <li>
-        <div class="intro-num">4</div>
-        <p>Each hawk picks a <strong>hunting strategy</strong> based on how close they are to catching the prey. Six strategies are shown in different colors.</p>
-      </li>
+    <p class="isub">Watch a flock of hawks hunt a rabbit — and solve a hard math problem while doing it.</p>
+    <ul class="isteps">
+      <li><div class="inum">1</div><p>The <strong>birds are hawks</strong> 🦅. They fly across a landscape hunting for the lowest valley — the best possible answer.</p></li>
+      <li><div class="inum">2</div><p>The <strong>gold rabbit</strong> 🐇 marks the best spot found so far. Every hawk tries to beat it.</p></li>
+      <li><div class="inum">3</div><p><strong>Dark = good, bright = bad.</strong> Hawks begin scattered, then close in on the darkest spot together.</p></li>
+      <li><div class="inum">4</div><p>Switch between <strong>2D top-view</strong> and <strong>3D landscape</strong> any time. In 3D the valleys really dip down — drag to rotate.</p></li>
     </ul>
-    <button class="intro-btn" id="startBtn">▶ Start Simulation</button>
+    <button class="intro-btn" id="startBtn">▶ Start the Hunt</button>
   </div>
 </div>
 
 <!-- Header -->
 <div class="header">
-  <div class="header-logo">
-    <div class="hawk-icon">🦅</div>
-    <div>
-      <h1>Harris Hawks Optimization</h1>
-      <div class="header-sub">Nature-inspired algorithm — hawks hunting prey</div>
-    </div>
+  <div class="logo">
+    <div class="logo-mark">🦅</div>
+    <div><h1>Harris Hawks Optimization</h1><div class="sub">A flock of hawks hunting prey, live</div></div>
   </div>
-  <div class="header-spacer"></div>
+  <div class="h-spacer"></div>
+  <div class="view-toggle">
+    <button id="view2d" class="active">2D</button>
+    <button id="view3d">3D</button>
+  </div>
   <div class="phase-badge explore" id="phaseBadge">EXPLORING</div>
 </div>
 
-<!-- Function selector bar -->
-<div class="fn-bar">
-  <span class="fn-bar-label">Test Function:</span>
-  <!-- cards injected by JS -->
-</div>
+<!-- Function bar -->
+<div class="fn-bar"><span class="lbl">Problem:</span></div>
 
-<!-- Main -->
-<div class="main">
-  <!-- Left: canvas -->
-  <div class="canvas-col">
+<!-- Body -->
+<div class="body">
+  <div class="stage">
     <div class="canvas-wrap">
       <canvas id="mainCanvas"></canvas>
+      <div class="legend-float" id="legendFloat"></div>
+      <div class="canvas-hint" id="canvasHint">Top-down view — dark areas are better solutions</div>
     </div>
-    <div class="bottom-row">
-      <div class="mini-panel">
-        <div class="mini-title">Convergence — Best Solution Over Time</div>
+    <div class="strip">
+      <div class="card">
+        <div class="ttl">Convergence — best solution over time</div>
         <canvas id="convCanvas"></canvas>
       </div>
-      <div class="mini-panel">
-        <div class="mini-title">Live Statistics</div>
-        <div class="stat-row" id="statRow"></div>
+      <div class="card">
+        <div class="ttl">Live stats</div>
+        <div class="stat-grid">
+          <div class="stat"><div class="v" id="sIter">0</div><div class="k">Iteration</div></div>
+          <div class="stat"><div class="v" id="sBest">—</div><div class="k">Best f</div></div>
+          <div class="stat"><div class="v" id="sHawks">—</div><div class="k">Hawks</div></div>
+          <div class="stat"><div class="v" id="sPhase">🔍</div><div class="k">Phase</div></div>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- Right: sidebar -->
   <div class="sidebar">
-
-    <!-- Controls -->
-    <div class="sb-section">
-      <div class="sb-title">Simulation Controls</div>
+    <div class="sb">
+      <div class="sb-t">Controls</div>
       <div class="btn-row">
-        <button class="btn primary" id="btnPlay"><span class="btn-icon">⏸</span>Pause</button>
-        <button class="btn" id="btnStep"><span class="btn-icon">⏭</span>Step</button>
-        <button class="btn" id="btnReset"><span class="btn-icon">↺</span>Reset</button>
+        <button class="btn primary" id="btnPlay">⏸ Pause</button>
+        <button class="btn" id="btnStep">⏭ Step</button>
+        <button class="btn" id="btnReset">↺ Reset</button>
       </div>
-      <div class="slider-block">
-        <div class="slider-label">Animation Speed <span id="speedLbl">5</span></div>
-        <input type="range" id="speedSlider" min="1" max="20" value="5">
-      </div>
-      <div class="slider-block">
-        <div class="slider-label">
-          Number of Hawks
-          <span id="hawkLbl">12</span>
-        </div>
-        <input type="range" id="hawkSlider" min="5" max="30" value="12">
-      </div>
-      <div class="slider-block">
-        <div class="slider-label">Max Iterations <span id="iterLbl">200</span></div>
-        <input type="range" id="iterSlider" min="50" max="500" value="200" step="50">
+      <div class="slider-block"><div class="slider-label">Speed (slow → fast) <span id="speedLbl">3</span></div><input type="range" id="speedSlider" min="1" max="12" value="3"></div>
+      <div class="slider-block"><div class="slider-label">Hawks <span id="hawkLbl">10</span></div><input type="range" id="hawkSlider" min="5" max="30" value="10"></div>
+      <div class="slider-block"><div class="slider-label">Max iterations <span id="iterLbl">150</span></div><input type="range" id="iterSlider" min="50" max="400" value="150" step="25"></div>
+    </div>
+
+    <div class="sb">
+      <div class="sb-t">Escape Energy (E)<div class="tip"><div class="ic">?</div><div class="tx">High energy → hawks explore widely. Low energy → hawks dive in for the kill. Energy fades as time passes.</div></div></div>
+      <div class="energy-track"><div class="energy-fill" id="energyFill" style="width:100%;background:#60a5fa"></div></div>
+      <div class="energy-markers"><span>🎯 Attack</span><span id="energyVal">|E|=1.00</span><span>🔍 Explore</span></div>
+    </div>
+
+    <div class="sb">
+      <div class="sb-t">Best Solution (Rabbit)</div>
+      <div class="rab">
+        <div class="hd">🐇 Rabbit position</div>
+        <div class="r"><span class="k">x</span><span class="v" id="rabX">—</span></div>
+        <div class="r"><span class="k">y</span><span class="v" id="rabY">—</span></div>
+        <div class="r"><span class="k">f(x,y)</span><span class="v" id="rabF">—</span></div>
+        <div class="r"><span class="k">true min</span><span class="v" id="trueMin">—</span></div>
+        <div class="r"><span class="k">distance to min</span><span class="v good" id="rabDist">—</span></div>
       </div>
     </div>
 
-    <!-- Escape energy -->
-    <div class="sb-section">
-      <div class="sb-title" style="display:flex;align-items:center;gap:6px">
-        Escape Energy (E)
-        <div class="tooltip-wrap">
-          <div class="tooltip-icon">?</div>
-          <div class="tooltip-text">High energy = hawks explore freely. Low energy = hawks close in on the prey. Energy decreases naturally as iterations pass.</div>
-        </div>
-      </div>
-      <div class="energy-wrap">
-        <div class="energy-track"><div class="energy-fill" id="energyFill" style="width:100%;background:#3b82f6"></div></div>
-        <div class="energy-markers">
-          <span>🎯 Exploiting</span>
-          <span id="energyVal">|E| = 1.00</span>
-          <span>🔍 Exploring</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Rabbit -->
-    <div class="sb-section">
-      <div class="sb-title">Best Solution Found (Rabbit)</div>
-      <div class="rabbit-card">
-        <div class="rabbit-header">
-          <span>♦ Rabbit Position</span>
-        </div>
-        <div class="rabbit-row"><span class="lbl">x</span><span class="val" id="rabX">—</span></div>
-        <div class="rabbit-row"><span class="lbl">y</span><span class="val" id="rabY">—</span></div>
-        <div class="rabbit-row"><span class="lbl">f(x,y)</span><span class="val" id="rabF">—</span></div>
-        <div class="rabbit-row"><span class="lbl">True min at</span><span class="val" id="trueMin">—</span></div>
-        <div class="rabbit-row"><span class="lbl">Distance to min</span><span class="val good" id="rabDist">—</span></div>
-      </div>
-    </div>
-
-    <!-- Strategy legend -->
-    <div class="sb-section">
-      <div class="sb-title">Hunting Strategies (6 types)</div>
+    <div class="sb">
+      <div class="sb-t">Hunting Strategies</div>
       <div id="stratLegend"></div>
     </div>
 
-    <!-- Insight -->
-    <div class="sb-section" style="flex:1">
-      <div class="sb-title">What's Happening Now</div>
-      <div class="insight-box explore" id="insightBox">
-        Initializing the hawk flock…
-      </div>
+    <div class="sb grow">
+      <div class="sb-t">What's happening now</div>
+      <div class="insight explore" id="insightBox">Getting the flock ready…</div>
     </div>
-
   </div>
 </div>
 
 <script>
-// ═══════════════════════════════════════════════════════════════
-//  BENCHMARK FUNCTIONS
-// ═══════════════════════════════════════════════════════════════
-const FUNCTIONS = [
-  {
-    id: 'rastrigin',
-    name: 'Rastrigin',
-    desc: 'Many valleys (multimodal)',
-    formula: 'f = 20 + x²−10cos(2πx) + y²−10cos(2πy)',
-    bounds: [-5.12, 5.12],
-    fn: (x, y) => 20 + x*x - 10*Math.cos(2*Math.PI*x) + y*y - 10*Math.cos(2*Math.PI*y),
-    minPos: [0, 0], minVal: 0,
-    minLabel: '(0, 0) → f = 0',
-    mapMax: 80,
-    colorMap: (t) => ({ r: Math.round(4 + t*14), g: Math.round(12 + t*44), b: Math.round(35 + t*80) }),
-  },
-  {
-    id: 'ackley',
-    name: 'Ackley',
-    desc: 'Deceptive flat plateau',
-    formula: 'f = −20·exp(…) − exp(…) + e + 20',
-    bounds: [-5, 5],
-    fn: (x, y) => {
-      const a = 20, b = 0.2, c = 2*Math.PI;
-      return -a * Math.exp(-b * Math.sqrt((x*x+y*y)/2))
-             - Math.exp((Math.cos(c*x)+Math.cos(c*y))/2)
-             + a + Math.E;
-    },
-    minPos: [0, 0], minVal: 0,
-    minLabel: '(0, 0) → f = 0',
-    mapMax: 22,
-    colorMap: (t) => ({ r: Math.round(5 + t*10), g: Math.round(10 + t*35), b: Math.round(30 + t*100) }),
-  },
-  {
-    id: 'sphere',
-    name: 'Sphere',
-    desc: 'Simple bowl (unimodal)',
-    formula: 'f = x² + y²',
-    bounds: [-5, 5],
-    fn: (x, y) => x*x + y*y,
-    minPos: [0, 0], minVal: 0,
-    minLabel: '(0, 0) → f = 0',
-    mapMax: 50,
-    colorMap: (t) => ({ r: Math.round(3 + t*8), g: Math.round(8 + t*20), b: Math.round(40 + t*120) }),
-  },
-  {
-    id: 'rosenbrock',
-    name: 'Rosenbrock',
-    desc: 'Narrow curved valley',
-    formula: 'f = (1−x)² + 100(y−x²)²',
-    bounds: [-2.5, 2.5],
-    fn: (x, y) => Math.pow(1-x, 2) + 100*Math.pow(y - x*x, 2),
-    minPos: [1, 1], minVal: 0,
-    minLabel: '(1, 1) → f = 0',
-    mapMax: 2500,
-    colorMap: (t) => ({ r: Math.round(5 + t*30), g: Math.round(8 + t*15), b: Math.round(20 + t*60) }),
-  },
-  {
-    id: 'himmelblau',
-    name: 'Himmelblau',
-    desc: 'Four equal minima',
-    formula: 'f = (x²+y−11)² + (x+y²−7)²',
-    bounds: [-5, 5],
-    fn: (x, y) => Math.pow(x*x+y-11, 2) + Math.pow(x+y*y-7, 2),
-    minPos: [3.0, 2.0], minVal: 0,
-    minLabel: '4 minima → f = 0',
-    mapMax: 500,
-    colorMap: (t) => ({ r: Math.round(4 + t*20), g: Math.round(5 + t*10), b: Math.round(25 + t*90) }),
-  },
-  {
-    id: 'holder',
-    name: "Hölder Table",
-    desc: 'Rugged landscape',
-    formula: 'f = −|sin(x)·cos(y)·exp(|1−√(x²+y²)/π|)|',
-    bounds: [-10, 10],
-    fn: (x, y) => -Math.abs(Math.sin(x)*Math.cos(y)*Math.exp(Math.abs(1 - Math.sqrt(x*x+y*y)/Math.PI))),
-    minPos: [8.0551, 9.6646], minVal: -19.2085,
-    minLabel: '(±8.055, ±9.665) → f ≈ −19.21',
-    mapMax: 1,
-    colorMap: (t) => ({ r: Math.round(3 + t*10), g: Math.round(6 + t*30), b: Math.round(20 + t*80) }),
-  },
+// ════════════ FUNCTIONS ════════════
+const FUNCTIONS=[
+  {id:'rastrigin',name:'Rastrigin',desc:'many traps',bounds:[-5.12,5.12],minPos:[0,0],minLabel:'(0,0)→0',
+   fn:(x,y)=>20+x*x-10*Math.cos(2*Math.PI*x)+y*y-10*Math.cos(2*Math.PI*y),
+   cmap:t=>({r:4+t*16,g:12+t*46,b:34+t*86})},
+  {id:'ackley',name:'Ackley',desc:'flat plateau',bounds:[-5,5],minPos:[0,0],minLabel:'(0,0)→0',
+   fn:(x,y)=>{const c=2*Math.PI;return -20*Math.exp(-0.2*Math.sqrt((x*x+y*y)/2))-Math.exp((Math.cos(c*x)+Math.cos(c*y))/2)+20+Math.E;},
+   cmap:t=>({r:5+t*10,g:10+t*36,b:30+t*100})},
+  {id:'sphere',name:'Sphere',desc:'simple bowl',bounds:[-5,5],minPos:[0,0],minLabel:'(0,0)→0',
+   fn:(x,y)=>x*x+y*y, cmap:t=>({r:3+t*9,g:8+t*22,b:38+t*120})},
+  {id:'rosenbrock',name:'Rosenbrock',desc:'curved valley',bounds:[-2.5,2.5],minPos:[1,1],minLabel:'(1,1)→0',
+   fn:(x,y)=>Math.pow(1-x,2)+100*Math.pow(y-x*x,2), cmap:t=>({r:5+t*30,g:8+t*16,b:20+t*64})},
+  {id:'himmelblau',name:'Himmelblau',desc:'4 minima',bounds:[-5,5],minPos:[3,2],minLabel:'4 minima→0',
+   fn:(x,y)=>Math.pow(x*x+y-11,2)+Math.pow(x+y*y-7,2), cmap:t=>({r:4+t*22,g:5+t*11,b:25+t*92})},
+  {id:'holder',name:'Hölder',desc:'rugged',bounds:[-10,10],minPos:[8.0551,9.6646],minLabel:'≈−19.21',
+   fn:(x,y)=>-Math.abs(Math.sin(x)*Math.cos(y)*Math.exp(Math.abs(1-Math.sqrt(x*x+y*y)/Math.PI))),
+   cmap:t=>({r:3+t*12,g:6+t*32,b:20+t*86})},
 ];
 
-// For Hölder: mapMax is relative to range
-FUNCTIONS[5].mapMax = 0; // flag to use adaptive
-
-// ═══════════════════════════════════════════════════════════════
-//  STRATEGIES
-// ═══════════════════════════════════════════════════════════════
-const STRATS = [
-  { color: '#8b5cf6', name: 'Free Roaming',      phase: 'Exploration',  plain: 'Hawks fly freely — scanning the whole landscape for interesting zones.' },
-  { color: '#3b82f6', name: 'Group Drift',        phase: 'Exploration',  plain: 'Hawks drift toward the group center + rabbit — sharing what they found.' },
-  { color: '#10b981', name: 'Soft Encirclement',  phase: 'Exploitation', plain: 'Hawks gently circle the rabbit — narrowing the search zone.' },
-  { color: '#ef4444', name: 'Direct Attack',      phase: 'Exploitation', plain: 'Hawks charge straight at the rabbit — intense local search.' },
-  { color: '#f59e0b', name: 'Lévy Dive (Soft)',   phase: 'Exploitation', plain: 'Hawks make erratic dives inspired by how real raptors hunt — jumping unpredictably to escape local traps.' },
-  { color: '#ec4899', name: 'Lévy Dive (Hard)',   phase: 'Exploitation', plain: 'Aggressive Lévy jumps from the group center — last push before capture.' },
+const STRATS=[
+  {color:'#a78bfa',name:'Free Roaming',phase:'Exploration',plain:'Hawks fly freely, scanning the whole landscape for promising zones.'},
+  {color:'#60a5fa',name:'Group Drift',phase:'Exploration',plain:'Hawks drift toward the flock center and the rabbit, sharing discoveries.'},
+  {color:'#34d399',name:'Soft Encircle',phase:'Exploitation',plain:'Hawks gently circle the rabbit, tightening the net around it.'},
+  {color:'#f87171',name:'Direct Attack',phase:'Exploitation',plain:'Hawks charge straight at the rabbit — sharp local search.'},
+  {color:'#fbbf24',name:'Lévy Dive (soft)',phase:'Exploitation',plain:'Hawks make sudden erratic dives — exactly how real raptors strike — to escape traps.'},
+  {color:'#f472b6',name:'Lévy Dive (hard)',phase:'Exploitation',plain:'Aggressive zig-zag dives from the flock center — the final pounce.'},
 ];
 
-// ═══════════════════════════════════════════════════════════════
-//  DOM refs
-// ═══════════════════════════════════════════════════════════════
-const mainCanvas = document.getElementById('mainCanvas');
-const ctx = mainCanvas.getContext('2d');
-const convCanvas = document.getElementById('convCanvas');
-const cvx = convCanvas.getContext('2d');
-const fnBar = document.querySelector('.fn-bar');
-const phaseBadge = document.getElementById('phaseBadge');
-const energyFill = document.getElementById('energyFill');
-const energyVal = document.getElementById('energyVal');
-const rabX = document.getElementById('rabX');
-const rabY = document.getElementById('rabY');
-const rabF = document.getElementById('rabF');
-const trueMin = document.getElementById('trueMin');
-const rabDist = document.getElementById('rabDist');
-const insightBox = document.getElementById('insightBox');
-const stratLegend = document.getElementById('stratLegend');
-const statRow = document.getElementById('statRow');
-const btnPlay = document.getElementById('btnPlay');
-const btnStep = document.getElementById('btnStep');
-const btnReset = document.getElementById('btnReset');
-const speedSlider = document.getElementById('speedSlider');
-const hawkSlider = document.getElementById('hawkSlider');
-const iterSlider = document.getElementById('iterSlider');
-const speedLbl = document.getElementById('speedLbl');
-const hawkLbl = document.getElementById('hawkLbl');
-const iterLbl = document.getElementById('iterLbl');
+// ════════════ DOM ════════════
+const $=id=>document.getElementById(id);
+const mainCanvas=$('mainCanvas'),ctx=mainCanvas.getContext('2d');
+const convCanvas=$('convCanvas'),cvx=convCanvas.getContext('2d');
+const fnBar=document.querySelector('.fn-bar');
+const phaseBadge=$('phaseBadge'),energyFill=$('energyFill'),energyVal=$('energyVal');
+const insightBox=$('insightBox'),stratLegend=$('stratLegend'),legendFloat=$('legendFloat');
+const canvasHint=$('canvasHint');
+const btnPlay=$('btnPlay'),btnStep=$('btnStep'),btnReset=$('btnReset');
+const speedSlider=$('speedSlider'),hawkSlider=$('hawkSlider'),iterSlider=$('iterSlider');
+const speedLbl=$('speedLbl'),hawkLbl=$('hawkLbl'),iterLbl=$('iterLbl');
 
-// ═══════════════════════════════════════════════════════════════
-//  Build UI elements
-// ═══════════════════════════════════════════════════════════════
-// Function cards
-FUNCTIONS.forEach((fn, i) => {
-  const card = document.createElement('div');
-  card.className = 'fn-card' + (i === 0 ? ' active' : '');
-  card.id = `fnCard${i}`;
-  card.innerHTML = `<div class="fn-name">${fn.name}</div><div class="fn-desc">${fn.desc}</div><div class="fn-min">${fn.minLabel}</div>`;
-  card.addEventListener('click', () => selectFunction(i));
-  fnBar.appendChild(card);
+let viewMode='2d';
+
+// build function cards
+FUNCTIONS.forEach((f,i)=>{
+  const c=document.createElement('div');
+  c.className='fn-card'+(i===0?' active':'');c.id='fnCard'+i;
+  c.innerHTML=`<div class="n">${f.name}</div><div class="d">${f.desc}</div>`;
+  c.addEventListener('click',()=>selectFunction(i));
+  fnBar.appendChild(c);
 });
-
-// Strategy legend rows
-STRATS.forEach((s, i) => {
-  const row = document.createElement('div');
-  row.className = 'strat-row';
-  row.id = `sRow${i}`;
-  row.innerHTML = `
-    <div class="strat-dot" style="background:${s.color}"></div>
-    <div class="strat-info">
-      <div class="strat-name">${s.name}</div>
-      <div class="strat-phase">${s.phase}</div>
-    </div>
-    <div class="strat-bar-wrap">
-      <div class="strat-bar-bg"><div class="strat-bar-fill" id="sBar${i}" style="background:${s.color};width:0%"></div></div>
-    </div>
-    <div class="strat-count" id="sCnt${i}">0</div>`;
-  stratLegend.appendChild(row);
+// strategy legend
+STRATS.forEach((s,i)=>{
+  const r=document.createElement('div');r.className='strat';r.id='sRow'+i;
+  r.innerHTML=`<div class="dot" style="background:${s.color};color:${s.color}"></div>
+    <div class="info"><div class="nm">${s.name}</div><div class="ph">${s.phase}</div></div>
+    <div class="bw"><div class="bb"><div class="bf" id="sBar${i}" style="background:${s.color};width:0%"></div></div></div>
+    <div class="ct" id="sCnt${i}">0</div>`;
+  stratLegend.appendChild(r);
 });
+// floating legend
+legendFloat.innerHTML=STRATS.map(s=>`<div class="lf-row"><div class="lf-dot" style="background:${s.color}"></div>${s.name}</div>`).join('')
+  +`<div class="lf-row"><div class="lf-rab"></div>Rabbit (best)</div>`;
 
-// Stat pills
-const STAT_DEFS = [
-  { id: 'sIter', label: 'Iteration' },
-  { id: 'sBest', label: 'Best f' },
-  { id: 'sPhase', label: 'Phase' },
-];
-STAT_DEFS.forEach(s => {
-  const pill = document.createElement('div');
-  pill.className = 'stat-pill';
-  pill.innerHTML = `<div class="stat-val" id="${s.id}">—</div><div class="stat-lbl">${s.label}</div>`;
-  statRow.appendChild(pill);
-});
+// ════════════ MATH ════════════
+const rand=()=>Math.random();
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+function randNorm(){let u;do{u=rand()}while(u===0);return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*rand());}
+function gammaFn(z){const g=7,c=[0.99999999999980993,676.5203681218851,-1259.1392167224028,771.32342877765313,-176.61502916214059,12.507343278686905,-0.13857109526572012,9.9843695780195716e-6,1.5056327351493116e-7];if(z<0.5)return Math.PI/(Math.sin(Math.PI*z)*gammaFn(1-z));z-=1;let x=c[0];for(let i=1;i<g+2;i++)x+=c[i]/(z+i);const t=z+g+0.5;return Math.sqrt(2*Math.PI)*Math.pow(t,z+0.5)*Math.exp(-t)*x;}
+function levy(beta=1.5){const num=Math.sin(Math.PI*beta/2)*gammaFn(1+beta);const den=gammaFn((1+beta)/2)*beta*Math.pow(2,(beta-1)/2);const sigma=Math.pow(Math.abs(num/den),1/beta);return(randNorm()*sigma)/Math.pow(Math.abs(randNorm()),1/beta);}
+function hexRgb(h){return[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];}
 
-// ═══════════════════════════════════════════════════════════════
-//  Math helpers
-// ═══════════════════════════════════════════════════════════════
-const rand = () => Math.random();
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+// ════════════ HEATMAP + SURFACE DATA ════════════
+const HRES=360;
+const hmOff=document.createElement('canvas');hmOff.width=hmOff.height=HRES;
+const hmCtx=hmOff.getContext('2d');
+let currentFnIdx=0;
+let fieldMin=0,fieldMax=1; // value range over domain (for normalization)
 
-function randNorm() {
-  let u, v;
-  do { u = rand(); } while (u === 0);
-  return Math.sqrt(-2*Math.log(u)) * Math.cos(2*Math.PI*rand());
-}
+// 3D surface grid
+const G=46;                       // grid resolution
+let surfH=[];                     // normalized heights [0..1] (0=min good, 1=max bad)
 
-function gammaFn(z) {
-  const g = 7;
-  const c = [0.99999999999980993,676.5203681218851,-1259.1392167224028,771.32342877765313,-176.61502916214059,12.507343278686905,-0.13857109526572012,9.9843695780195716e-6,1.5056327351493116e-7];
-  if (z < 0.5) return Math.PI / (Math.sin(Math.PI*z) * gammaFn(1-z));
-  z -= 1;
-  let x = c[0];
-  for (let i = 1; i < g+2; i++) x += c[i]/(z+i);
-  const t = z + g + 0.5;
-  return Math.sqrt(2*Math.PI) * Math.pow(t, z+0.5) * Math.exp(-t) * x;
-}
-
-function levy(beta = 1.5) {
-  const num = Math.sin(Math.PI*beta/2) * gammaFn(1+beta);
-  const den = gammaFn((1+beta)/2) * beta * Math.pow(2, (beta-1)/2);
-  const sigma = Math.pow(Math.abs(num/den), 1/beta);
-  return (randNorm()*sigma) / Math.pow(Math.abs(randNorm()), 1/beta);
-}
-
-function hexRgb(h) {
-  return [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  Heatmap
-// ═══════════════════════════════════════════════════════════════
-const HRES = 400;
-const hmOff = document.createElement('canvas');
-hmOff.width = hmOff.height = HRES;
-const hmCtx = hmOff.getContext('2d');
-
-let currentFnIdx = 0;
-
-function buildHeatmap(fnIdx) {
-  const f = FUNCTIONS[fnIdx];
-  const img = hmCtx.createImageData(HRES, HRES);
-  const d = img.data;
-  const B = f.bounds;
-  const range = B[1] - B[0];
-  // sample values
-  let minV = Infinity, maxV = -Infinity;
-  const vals = new Float32Array(HRES * HRES);
-  for (let py = 0; py < HRES; py++) {
-    for (let px = 0; px < HRES; px++) {
-      const x = B[0] + (px/(HRES-1)) * range;
-      const y = B[0] + (py/(HRES-1)) * range;
-      const v = f.fn(x, y);
-      vals[py*HRES+px] = v;
-      if (v < minV) minV = v;
-      if (v > maxV) maxV = v;
-    }
+function buildField(fnIdx){
+  const f=FUNCTIONS[fnIdx],B=f.bounds,range=B[1]-B[0];
+  // heatmap + range
+  const img=hmCtx.createImageData(HRES,HRES),d=img.data;
+  let minV=Infinity,maxV=-Infinity;
+  const vals=new Float32Array(HRES*HRES);
+  for(let py=0;py<HRES;py++)for(let px=0;px<HRES;px++){
+    const x=B[0]+px/(HRES-1)*range,y=B[0]+py/(HRES-1)*range,v=f.fn(x,y);
+    vals[py*HRES+px]=v;if(v<minV)minV=v;if(v>maxV)maxV=v;
   }
-  const vRange = maxV - minV || 1;
-  for (let i = 0; i < HRES*HRES; i++) {
-    const t = Math.pow((vals[i]-minV)/vRange, 0.55); // gamma to emphasize lows
-    const c = f.colorMap(t);
-    d[i*4]   = c.r;
-    d[i*4+1] = c.g;
-    d[i*4+2] = c.b;
-    d[i*4+3] = 255;
+  fieldMin=minV;fieldMax=maxV;
+  const vr=maxV-minV||1;
+  for(let i=0;i<HRES*HRES;i++){
+    const t=Math.pow((vals[i]-minV)/vr,0.5);
+    const c=f.cmap(t);
+    d[i*4]=c.r|0;d[i*4+1]=c.g|0;d[i*4+2]=c.b|0;d[i*4+3]=255;
   }
-  hmCtx.putImageData(img, 0, 0);
+  hmCtx.putImageData(img,0,0);
+  // surface grid heights
+  surfH=[];
+  for(let j=0;j<=G;j++){const row=[];for(let i=0;i<=G;i++){
+    const x=B[0]+i/G*range,y=B[0]+j/G*range,v=f.fn(x,y);
+    row.push((v-minV)/vr);
+  }surfH.push(row);}
+}
+function normVal(v){return (v-fieldMin)/((fieldMax-fieldMin)||1);}
+buildField(0);
+
+function selectFunction(i){
+  currentFnIdx=i;
+  document.querySelectorAll('.fn-card').forEach((c,j)=>c.classList.toggle('active',j===i));
+  buildField(i);resetState();
 }
 
-buildHeatmap(0);
+// ════════════ STATE ════════════
+let state=null,running=true,lastTs=0,accMs=0,frameN=0,tweenT=1;
 
-function selectFunction(i) {
-  currentFnIdx = i;
-  document.querySelectorAll('.fn-card').forEach((c,j) => c.classList.toggle('active', j===i));
-  buildHeatmap(i);
-  resetState();
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  Simulation state
-// ═══════════════════════════════════════════════════════════════
-let state = null;
-let running = true;
-let animId = null;
-let lastTs = 0;
-let accMs = 0;
-let frameN = 0;
-
-function initState() {
-  const fn = FUNCTIONS[currentFnIdx];
-  const N = parseInt(hawkSlider.value);
-  const T = parseInt(iterSlider.value);
-  const B = fn.bounds;
-  const hawks = Array.from({length: N}, () => {
-    const x = B[0] + rand()*(B[1]-B[0]);
-    const y = B[0] + rand()*(B[1]-B[0]);
-    return { x, y, fit: fn.fn(x,y), strat: 0, trail: [], age: 0 };
+function initState(){
+  const fn=FUNCTIONS[currentFnIdx],N=+hawkSlider.value,T=+iterSlider.value,B=fn.bounds;
+  const hawks=Array.from({length:N},()=>{
+    const x=B[0]+rand()*(B[1]-B[0]),y=B[0]+rand()*(B[1]-B[0]);
+    return{x,y,px:x,py:y,fit:fn.fn(x,y),strat:0,trail:[],heading:rand()*Math.PI*2};
   });
-  let best = hawks.reduce((a,b) => b.fit<a.fit?b:a, hawks[0]);
-  return {
-    hawks, T,
-    rabbit: { x: best.x, y: best.y, fit: best.fit },
-    t: 0,
-    conv: [],
-    stratCounts: new Array(6).fill(0),
-    lastE: 1,
-    done: false,
-    fn,
-  };
+  let best=hawks.reduce((a,b)=>b.fit<a.fit?b:a,hawks[0]);
+  return{hawks,T,fn,t:0,conv:[],stratCounts:new Array(6).fill(0),lastE:1,done:false,
+    rabbit:{x:best.x,y:best.y,px:best.x,py:best.y,fit:best.fit}};
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  HHO step
-// ═══════════════════════════════════════════════════════════════
-function step(s) {
-  if (s.done) return;
-  const { hawks, t, T, rabbit, fn } = s;
-  const B = fn.bounds;
-  const N = hawks.length;
-  const E0 = -1 + rand()*2;
-  const E = 2*E0*(1 - t/T);
-  const absE = Math.abs(E);
-  s.lastE = absE;
-
-  const mx = hawks.reduce((a,h)=>a+h.x,0)/N;
-  const my = hawks.reduce((a,h)=>a+h.y,0)/N;
-  const counts = new Array(6).fill(0);
-
-  hawks.forEach(hawk => {
-    hawk.trail.push({x:hawk.x, y:hawk.y});
-    if (hawk.trail.length > 12) hawk.trail.shift();
-    hawk.age++;
-
-    let nx=hawk.x, ny=hawk.y, strat;
-    const p = rand(), q = rand();
-    const rh = hawks[Math.floor(rand()*N)];
-    const J = 2*(1-rand());
-
-    if (absE >= 1) {
-      if (q >= 0.5) {
-        strat = 0;
-        nx = rh.x - rand()*Math.abs(rh.x - 2*rand()*hawk.x);
-        ny = rh.y - rand()*Math.abs(rh.y - 2*rand()*hawk.y);
-      } else {
-        strat = 1;
-        nx = (rabbit.x - mx) - rand()*(B[0] + rand()*(B[1]-B[0]));
-        ny = (rabbit.y - my) - rand()*(B[0] + rand()*(B[1]-B[0]));
-      }
-    } else {
-      const dx = rabbit.x - hawk.x;
-      const dy = rabbit.y - hawk.y;
-      if (p >= 0.5) {
-        if (absE >= 0.5) {
-          strat = 2;
-          nx = dx - E*Math.abs(J*rabbit.x - hawk.x);
-          ny = dy - E*Math.abs(J*rabbit.y - hawk.y);
-        } else {
-          strat = 3;
-          nx = rabbit.x - E*Math.abs(dx);
-          ny = rabbit.y - E*Math.abs(dy);
-        }
-      } else {
-        const lx = levy(), ly = levy();
-        if (absE >= 0.5) {
-          strat = 4;
-          const Yx = rabbit.x - E*Math.abs(J*rabbit.x - hawk.x);
-          const Yy = rabbit.y - E*Math.abs(J*rabbit.y - hawk.y);
-          const Zx = Yx + rand()*lx, Zy = Yy + rand()*ly;
-          const fY = fn.fn(clamp(Yx,...B), clamp(Yy,...B));
-          const fZ = fn.fn(clamp(Zx,...B), clamp(Zy,...B));
-          [nx,ny] = fY<fZ ? [Yx,Yy] : [Zx,Zy];
-        } else {
-          strat = 5;
-          const Yx = rabbit.x - E*Math.abs(J*rabbit.x - mx);
-          const Yy = rabbit.y - E*Math.abs(J*rabbit.y - my);
-          const Zx = Yx + rand()*lx, Zy = Yy + rand()*ly;
-          const fY = fn.fn(clamp(Yx,...B), clamp(Yy,...B));
-          const fZ = fn.fn(clamp(Zx,...B), clamp(Zy,...B));
-          [nx,ny] = fY<fZ ? [Yx,Yy] : [Zx,Zy];
+// ════════════ HHO STEP ════════════
+function step(s){
+  if(s.done)return;
+  const{hawks,t,T,rabbit,fn}=s,B=fn.bounds,N=hawks.length;
+  const E0=-1+rand()*2,E=2*E0*(1-t/T),absE=Math.abs(E);s.lastE=absE;
+  const mx=hawks.reduce((a,h)=>a+h.x,0)/N,my=hawks.reduce((a,h)=>a+h.y,0)/N;
+  const counts=new Array(6).fill(0);
+  // snapshot prev for tween
+  rabbit.px=rabbit.x;rabbit.py=rabbit.y;
+  hawks.forEach(h=>{
+    h.px=h.x;h.py=h.y;
+    h.trail.push({x:h.x,y:h.y});if(h.trail.length>10)h.trail.shift();
+    let nx=h.x,ny=h.y,strat;
+    const p=rand(),q=rand(),rh=hawks[Math.floor(rand()*N)],J=2*(1-rand());
+    if(absE>=1){
+      if(q>=0.5){strat=0;nx=rh.x-rand()*Math.abs(rh.x-2*rand()*h.x);ny=rh.y-rand()*Math.abs(rh.y-2*rand()*h.y);}
+      else{strat=1;nx=(rabbit.x-mx)-rand()*(B[0]+rand()*(B[1]-B[0]));ny=(rabbit.y-my)-rand()*(B[0]+rand()*(B[1]-B[0]));}
+    }else{
+      const dx=rabbit.x-h.x,dy=rabbit.y-h.y;
+      if(p>=0.5){
+        if(absE>=0.5){strat=2;nx=dx-E*Math.abs(J*rabbit.x-h.x);ny=dy-E*Math.abs(J*rabbit.y-h.y);}
+        else{strat=3;nx=rabbit.x-E*Math.abs(dx);ny=rabbit.y-E*Math.abs(dy);}
+      }else{
+        const lx=levy(),ly=levy();
+        if(absE>=0.5){strat=4;
+          const Yx=rabbit.x-E*Math.abs(J*rabbit.x-h.x),Yy=rabbit.y-E*Math.abs(J*rabbit.y-h.y);
+          const Zx=Yx+rand()*lx,Zy=Yy+rand()*ly;
+          const fY=fn.fn(clamp(Yx,...B),clamp(Yy,...B)),fZ=fn.fn(clamp(Zx,...B),clamp(Zy,...B));
+          [nx,ny]=fY<fZ?[Yx,Yy]:[Zx,Zy];
+        }else{strat=5;
+          const Yx=rabbit.x-E*Math.abs(J*rabbit.x-mx),Yy=rabbit.y-E*Math.abs(J*rabbit.y-my);
+          const Zx=Yx+rand()*lx,Zy=Yy+rand()*ly;
+          const fY=fn.fn(clamp(Yx,...B),clamp(Yy,...B)),fZ=fn.fn(clamp(Zx,...B),clamp(Zy,...B));
+          [nx,ny]=fY<fZ?[Yx,Yy]:[Zx,Zy];
         }
       }
     }
-    nx = clamp(nx, B[0], B[1]);
-    ny = clamp(ny, B[0], B[1]);
-    const nf = fn.fn(nx, ny);
-    if (nf < hawk.fit) { hawk.x=nx; hawk.y=ny; hawk.fit=nf; }
-    hawk.strat = strat;
-    counts[strat]++;
+    nx=clamp(nx,B[0],B[1]);ny=clamp(ny,B[0],B[1]);
+    const nf=fn.fn(nx,ny);
+    if(nf<h.fit){h.heading=Math.atan2(ny-h.y,nx-h.x);h.x=nx;h.y=ny;h.fit=nf;}
+    h.strat=strat;counts[strat]++;
   });
-
-  s.stratCounts = counts;
-  hawks.forEach(h => { if (h.fit < s.rabbit.fit) s.rabbit = {x:h.x, y:h.y, fit:h.fit}; });
-  s.conv.push(s.rabbit.fit);
-  s.t++;
-  if (s.t >= T) s.done = true;
+  s.stratCounts=counts;
+  hawks.forEach(h=>{if(h.fit<s.rabbit.fit)s.rabbit={x:h.x,y:h.y,px:rabbit.px,py:rabbit.py,fit:h.fit};});
+  s.conv.push(s.rabbit.fit);s.t++;if(s.t>=T)s.done=true;
+  tweenT=0;
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  Canvas coordinate helpers
-// ═══════════════════════════════════════════════════════════════
-const PAD = 24;
-let CW = 0, CH = 0;
+// ════════════ CANVAS SIZING ════════════
+let CW=0,CH=0,DPR=Math.min(window.devicePixelRatio||1,2);
+function resize(){
+  const w=mainCanvas.parentElement;
+  CW=w.clientWidth;CH=w.clientHeight;
+  mainCanvas.width=CW*DPR;mainCanvas.height=CH*DPR;
+  mainCanvas.style.width=CW+'px';mainCanvas.style.height=CH+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  const cw=convCanvas.parentElement;
+  convCanvas.width=(cw.clientWidth-24)*DPR;convCanvas.height=(cw.clientHeight-26)*DPR;
+  convCanvas.style.width=(cw.clientWidth-24)+'px';convCanvas.style.height=(cw.clientHeight-26)+'px';
+  cvx.setTransform(DPR,0,0,DPR,0,0);
+}
+const ro=new ResizeObserver(resize);
 
-function resize() {
-  const wrap = mainCanvas.parentElement;
-  CW = mainCanvas.width = wrap.clientWidth;
-  CH = mainCanvas.height = wrap.clientHeight;
-  convCanvas.width = convCanvas.parentElement.clientWidth - 24;
-  convCanvas.height = convCanvas.parentElement.clientHeight - 26;
+// ════════════ 2D PROJECTION ════════════
+const PAD=26;
+function to2D(x,y){const B=state.fn.bounds;
+  return[PAD+(x-B[0])/(B[1]-B[0])*(CW-2*PAD), PAD+(y-B[0])/(B[1]-B[0])*(CH-2*PAD)];}
+
+// ════════════ 3D CAMERA ════════════
+let yaw=0.7,pitch=0.95,autoRotate=true,dragging=false,lastMx=0,lastMy=0;
+const DEPTH=2.6; // surface vertical exaggeration
+
+function to3D(nx,ny,h){
+  // nx,ny in [-1,1]; h in [0,1] (0=low f=valley). Low h sits lower on screen so valleys dip.
+  const Z=(0.5-h)*DEPTH;
+  // rotate around vertical (yaw)
+  let rx=nx*Math.cos(yaw)-ny*Math.sin(yaw);
+  let ry=nx*Math.sin(yaw)+ny*Math.cos(yaw);
+  let rz=Z;
+  // pitch tilt
+  let py2=ry*Math.cos(pitch)-rz*Math.sin(pitch);
+  let pz2=ry*Math.sin(pitch)+rz*Math.cos(pitch);
+  const focal=3.2,dist=3.4;
+  const sc=focal/(focal+pz2+dist);
+  const zoom=Math.min(CW,CH)*0.46;
+  return[CW/2+rx*sc*zoom, CH*0.54-py2*sc*zoom, pz2, sc];
+}
+function domainToNorm(x,y){const B=state.fn.bounds;return[(x-B[0])/(B[1]-B[0])*2-1,(y-B[0])/(B[1]-B[0])*2-1];}
+
+// ════════════ DRAW: HAWK + RABBIT GLYPHS ════════════
+function drawHawk(sx,sy,size,heading,color,flapPhase){
+  const[r,g,b]=hexRgb(color);
+  // glow
+  const gr=ctx.createRadialGradient(sx,sy,0,sx,sy,size*3.2);
+  gr.addColorStop(0,`rgba(${r},${g},${b},0.5)`);gr.addColorStop(1,`rgba(${r},${g},${b},0)`);
+  ctx.fillStyle=gr;ctx.beginPath();ctx.arc(sx,sy,size*3.2,0,Math.PI*2);ctx.fill();
+  ctx.save();ctx.translate(sx,sy);ctx.rotate(heading+Math.PI/2);
+  const flap=Math.sin(flapPhase)*0.4;
+  ctx.fillStyle=color;ctx.strokeStyle='rgba(255,255,255,.45)';ctx.lineWidth=0.6;
+  // body
+  ctx.beginPath();ctx.ellipse(0,0,size*0.32,size*0.95,0,0,Math.PI*2);ctx.fill();
+  // wings (M shape) — left & right, flap up/down
+  const w=size*1.9,wy=-size*0.1,tip=size*(0.7+flap);
+  ctx.beginPath();
+  ctx.moveTo(0,wy);
+  ctx.quadraticCurveTo(-w*0.5,wy-tip,-w,wy+size*0.25);
+  ctx.quadraticCurveTo(-w*0.45,wy+size*0.1,0,wy+size*0.35);
+  ctx.quadraticCurveTo(w*0.45,wy+size*0.1,w,wy+size*0.25);
+  ctx.quadraticCurveTo(w*0.5,wy-tip,0,wy);
+  ctx.closePath();ctx.fill();ctx.stroke();
+  // head
+  ctx.beginPath();ctx.arc(0,-size*0.85,size*0.28,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+}
+function drawRabbit(sx,sy,size){
+  const t=frameN*0.08,pulse=1+0.12*Math.sin(t);
+  size*=pulse;
+  const gr=ctx.createRadialGradient(sx,sy,0,sx,sy,size*3.4);
+  gr.addColorStop(0,'rgba(251,191,36,.5)');gr.addColorStop(1,'rgba(251,191,36,0)');
+  ctx.fillStyle=gr;ctx.beginPath();ctx.arc(sx,sy,size*3.4,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#fbbf24';ctx.strokeStyle='rgba(255,255,255,.6)';ctx.lineWidth=1;
+  // body
+  ctx.beginPath();ctx.ellipse(sx,sy+size*0.25,size*0.78,size*0.92,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+  // head
+  ctx.beginPath();ctx.arc(sx,sy-size*0.7,size*0.55,0,Math.PI*2);ctx.fill();ctx.stroke();
+  // ears
+  ctx.beginPath();ctx.ellipse(sx-size*0.32,sy-size*1.45,size*0.2,size*0.6,-0.2,0,Math.PI*2);ctx.fill();ctx.stroke();
+  ctx.beginPath();ctx.ellipse(sx+size*0.32,sy-size*1.45,size*0.2,size*0.6,0.2,0,Math.PI*2);ctx.fill();ctx.stroke();
+  // tail
+  ctx.fillStyle='#fff7e0';ctx.beginPath();ctx.arc(sx,sy+size*1.05,size*0.28,0,Math.PI*2);ctx.fill();
+  // eye
+  ctx.fillStyle='#3a2a00';ctx.beginPath();ctx.arc(sx-size*0.2,sy-size*0.7,size*0.1,0,Math.PI*2);ctx.fill();
 }
 
-function toC(x, y) {
-  if (!state) return [0,0];
-  const B = state.fn.bounds;
-  const cx = PAD + ((x-B[0])/(B[1]-B[0])) * (CW-2*PAD);
-  const cy = PAD + ((y-B[0])/(B[1]-B[0])) * (CH-2*PAD);
-  return [cx, cy];
+// ════════════ DRAW 2D ════════════
+function draw2D(frac){
+  ctx.clearRect(0,0,CW,CH);
+  ctx.drawImage(hmOff,PAD,PAD,CW-2*PAD,CH-2*PAD);
+  const B=state.fn.bounds;
+  // axes
+  const[zx,zy]=to2D(0,0);
+  ctx.strokeStyle='rgba(255,255,255,.05)';ctx.lineWidth=1;ctx.setLineDash([3,5]);
+  ctx.beginPath();ctx.moveTo(zx,PAD);ctx.lineTo(zx,CH-PAD);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(PAD,zy);ctx.lineTo(CW-PAD,zy);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='rgba(255,255,255,.18)';ctx.font='9px monospace';
+  for(const v of [B[0],0,B[1]]){const[cx]=to2D(v,0);const[,cy]=to2D(0,v);
+    ctx.fillText(v.toFixed(1),cx-6,CH-PAD+14);ctx.fillText(v.toFixed(1),3,cy+3);}
+  drawMinima2D();
+  // trails
+  state.hawks.forEach(h=>{
+    if(h.trail.length<2)return;const[r,g,b]=hexRgb(STRATS[h.strat].color);
+    for(let i=1;i<h.trail.length;i++){const a=i/h.trail.length*0.35;
+      ctx.strokeStyle=`rgba(${r},${g},${b},${a})`;ctx.lineWidth=1.3;
+      const[x0,y0]=to2D(h.trail[i-1].x,h.trail[i-1].y),[x1,y1]=to2D(h.trail[i].x,h.trail[i].y);
+      ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);ctx.stroke();}
+  });
+  const sz=Math.max(6,Math.min(CW,CH)*0.018);
+  state.hawks.forEach(h=>{
+    const ix=lerp(h.px,h.x,frac),iy=lerp(h.py,h.y,frac);
+    const[sx,sy]=to2D(ix,iy);
+    drawHawk(sx,sy,sz,h.heading,STRATS[h.strat].color,frameN*0.3+sx);
+  });
+  const rb=state.rabbit;const[rx,ry]=to2D(lerp(rb.px,rb.x,frac),lerp(rb.py,rb.y,frac));
+  drawRabbit(rx,ry,sz*1.1);
+  ctx.fillStyle='#fbbf24';ctx.font='bold 11px monospace';
+  ctx.fillText(`f=${rb.fit.toFixed(4)}`,rx+sz*1.6,ry-sz*1.2);
+}
+function minimaPositions(){
+  const fn=state.fn;
+  if(fn.id==='himmelblau')return[[3,2],[-2.805,3.131],[-3.779,-3.283],[3.584,-1.848]];
+  if(fn.id==='holder')return[[8.0551,9.6646],[-8.0551,9.6646],[8.0551,-9.6646],[-8.0551,-9.6646]];
+  return[fn.minPos];
+}
+function drawMinima2D(){
+  ctx.save();ctx.setLineDash([4,5]);ctx.strokeStyle='rgba(255,255,255,.3)';ctx.lineWidth=1.2;
+  minimaPositions().forEach(([mx,my])=>{const[cx,cy]=to2D(mx,my);
+    ctx.beginPath();ctx.arc(cx,cy,11,0,Math.PI*2);ctx.stroke();});
+  ctx.setLineDash([]);ctx.restore();
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  Draw
-// ═══════════════════════════════════════════════════════════════
-function draw() {
-  if (!state) return;
-  ctx.clearRect(0, 0, CW, CH);
-
-  // Heatmap
-  ctx.drawImage(hmOff, PAD, PAD, CW-2*PAD, CH-2*PAD);
-
-  // Grid lines at 0
-  const B = state.fn.bounds;
-  const [zx, zy] = toC(0, 0);
-  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
-  ctx.lineWidth = 1;
-  ctx.setLineDash([3,5]);
-  ctx.beginPath(); ctx.moveTo(zx,PAD); ctx.lineTo(zx,CH-PAD); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(PAD,zy); ctx.lineTo(CW-PAD,zy); ctx.stroke();
-  ctx.setLineDash([]);
-
-  // Axis labels
-  ctx.fillStyle = 'rgba(255,255,255,0.18)';
-  ctx.font = '9px monospace';
-  for (const v of [B[0], 0, B[1]]) {
-    const [cx] = toC(v, 0);
-    const [, cy] = toC(0, v);
-    ctx.fillText(v.toFixed(1), cx-6, CH-PAD+14);
-    ctx.fillText(v.toFixed(1), 2, cy+3);
+// ════════════ DRAW 3D ════════════
+function draw3D(frac){
+  ctx.clearRect(0,0,CW,CH);
+  // background gradient
+  const bg=ctx.createLinearGradient(0,0,0,CH);
+  bg.addColorStop(0,'#060f1e');bg.addColorStop(1,'#020710');
+  ctx.fillStyle=bg;ctx.fillRect(0,0,CW,CH);
+  const fn=state.fn;
+  // build quads with depth
+  const quads=[];
+  for(let j=0;j<G;j++)for(let i=0;i<G;i++){
+    const h00=surfH[j][i],h10=surfH[j][i+1],h11=surfH[j+1][i+1],h01=surfH[j+1][i];
+    const n0x=i/G*2-1,n1x=(i+1)/G*2-1,n0y=j/G*2-1,n1y=(j+1)/G*2-1;
+    const p00=to3D(n0x,n0y,h00),p10=to3D(n1x,n0y,h10),p11=to3D(n1x,n1y,h11),p01=to3D(n0x,n1y,h01);
+    const depth=(p00[2]+p10[2]+p11[2]+p01[2])/4;
+    const hAvg=(h00+h10+h11+h01)/4;
+    quads.push({p00,p10,p11,p01,depth,h:hAvg});
   }
+  quads.sort((a,b)=>b.depth-a.depth); // far first
+  quads.forEach(q=>{
+    const t=Math.pow(q.h,0.5),c=fn.cmap(t);
+    // simple shading by height
+    const shade=0.55+0.45*(1-q.h);
+    ctx.fillStyle=`rgb(${(c.r*shade)|0},${(c.g*shade)|0},${(c.b*shade)|0})`;
+    ctx.strokeStyle='rgba(120,170,230,0.06)';ctx.lineWidth=0.5;
+    ctx.beginPath();
+    ctx.moveTo(q.p00[0],q.p00[1]);ctx.lineTo(q.p10[0],q.p10[1]);
+    ctx.lineTo(q.p11[0],q.p11[1]);ctx.lineTo(q.p01[0],q.p01[1]);ctx.closePath();
+    ctx.fill();ctx.stroke();
+  });
+  // minima markers (on surface)
+  minimaPositions().forEach(([mx,my])=>{
+    const[nx,ny]=domainToNorm(mx,my);const h=normVal(fn.fn(mx,my));
+    const[sx,sy,,sc]=to3D(nx,ny,h);
+    ctx.save();ctx.setLineDash([3,4]);ctx.strokeStyle='rgba(255,255,255,.4)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.arc(sx,sy,9*sc*1.2,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.restore();
+  });
+  // collect actors (hawks + rabbit) with depth, draw sorted with surface?
+  // We draw them above surface (lifted) so they read clearly.
+  const lift=0.16;
+  const actors=[];
+  state.hawks.forEach(h=>{
+    const ix=lerp(h.px,h.x,frac),iy=lerp(h.py,h.y,frac);
+    const[nx,ny]=domainToNorm(ix,iy);const hh=normVal(fn.fn(ix,iy))-lift;
+    const[sx,sy,dz,sc]=to3D(nx,ny,hh);
+    actors.push({type:'hawk',sx,sy,dz,sc,h});
+  });
+  const rb=state.rabbit;const rix=lerp(rb.px,rb.x,frac),riy=lerp(rb.py,rb.y,frac);
+  {const[nx,ny]=domainToNorm(rix,riy);const hh=normVal(fn.fn(rix,riy))-lift;
+   const[sx,sy,dz,sc]=to3D(nx,ny,hh);actors.push({type:'rabbit',sx,sy,dz,sc,rb});}
+  actors.sort((a,b)=>b.dz-a.dz); // far first so nearer actors draw on top
+  actors.forEach(a=>{
+    const size=Math.max(5,Math.min(CW,CH)*0.02*a.sc);
+    if(a.type==='hawk'){
+      drawHawk(a.sx,a.sy,size,a.h.heading,STRATS[a.h.strat].color,frameN*0.3+a.sx);
+    }else{
+      drawRabbit(a.sx,a.sy,size*1.1);
+      ctx.fillStyle='#fbbf24';ctx.font='bold 11px monospace';
+      ctx.fillText(`f=${a.rb.fit.toFixed(4)}`,a.sx+size*1.6,a.sy-size*1.2);
+    }
+  });
+}
 
-  // True global minima markers
-  drawMinima();
+// ════════════ CONVERGENCE ════════════
+function drawConv(){
+  const W=convCanvas.width/DPR,H=convCanvas.height/DPR;
+  cvx.clearRect(0,0,W,H);cvx.fillStyle='#06101e';cvx.fillRect(0,0,W,H);
+  const conv=state.conv;if(conv.length<2)return;
+  const p=4,maxV=conv[0],minV=Math.min(...conv),range=maxV-minV||1;
+  cvx.beginPath();
+  conv.forEach((v,i)=>{const x=p+i/(conv.length-1)*(W-2*p),y=p+(maxV-v)/range*(H-2*p);i?cvx.lineTo(x,y):cvx.moveTo(x,y);});
+  cvx.lineTo(W-p,H-p);cvx.lineTo(p,H-p);cvx.closePath();cvx.fillStyle='rgba(59,130,246,.12)';cvx.fill();
+  cvx.beginPath();
+  conv.forEach((v,i)=>{const x=p+i/(conv.length-1)*(W-2*p),y=p+(maxV-v)/range*(H-2*p);i?cvx.lineTo(x,y):cvx.moveTo(x,y);});
+  cvx.strokeStyle='#60a5fa';cvx.lineWidth=1.6;cvx.stroke();
+  cvx.fillStyle='rgba(96,165,250,.55)';cvx.font='9px monospace';
+  cvx.fillText('start '+conv[0].toFixed(2),p+2,p+10);
+  cvx.fillStyle='#93c5fd';cvx.fillText('now '+conv[conv.length-1].toFixed(4),W-72,p+10);
+}
 
-  // Trails
-  state.hawks.forEach(h => drawTrail(h));
+// ════════════ INSIGHT ════════════
+function getInsight(s){
+  if(!s)return['explore','Getting ready…'];
+  if(s.done)return['exploit',`✅ Hunt complete! After ${s.T} iterations the best catch is f(${s.rabbit.x.toFixed(3)}, ${s.rabbit.y.toFixed(3)}) = ${s.rabbit.fit.toFixed(4)}. The flock cornered the rabbit.`];
+  const e=s.lastE,dom=s.stratCounts.indexOf(Math.max(...s.stratCounts)),d=STRATS[dom];
+  if(e>=1)return['explore',`🔍 Exploration — the hawks spread out and scan widely. Leading behavior: “${d.name}” — ${d.plain}`];
+  if(e>=0.5)return['transit',`⚡ Transition — energy is dropping, the flock starts focusing. Leading: “${d.name}” — ${d.plain}`];
+  return['exploit',`🎯 Attack — hawks dive hard onto the best zone. Leading: “${d.name}” — ${d.plain}`];
+}
 
-  // Hawks
-  state.hawks.forEach(h => drawHawk(h));
+// ════════════ UI ════════════
+function updateUI(){
+  if(!state)return;const s=state,e=Math.min(s.lastE,1);
+  energyFill.style.width=(e*100)+'%';
+  energyFill.style.background=e>0.6?'#60a5fa':e>0.3?'#fbbf24':'#f87171';
+  energyVal.textContent='|E|='+e.toFixed(3);
+  if(e>=1){phaseBadge.className='phase-badge explore';phaseBadge.textContent='EXPLORING';}
+  else if(e>=0.5){phaseBadge.className='phase-badge transit';phaseBadge.textContent='TRANSITIONING';}
+  else{phaseBadge.className='phase-badge exploit';phaseBadge.textContent='EXPLOITING';}
+  $('rabX').textContent=s.rabbit.x.toFixed(5);$('rabY').textContent=s.rabbit.y.toFixed(5);
+  $('rabF').textContent=s.rabbit.fit.toFixed(6);$('trueMin').textContent=s.fn.minLabel;
+  const[mx,my]=s.fn.minPos,dist=Math.sqrt((s.rabbit.x-mx)**2+(s.rabbit.y-my)**2);
+  $('rabDist').textContent=dist.toFixed(5);
+  $('sIter').textContent=s.t+'/'+s.T;$('sBest').textContent=s.rabbit.fit.toFixed(3);
+  $('sHawks').textContent=s.hawks.length;$('sPhase').textContent=e>=1?'🔍':e>=0.5?'⚡':'🎯';
+  const total=s.stratCounts.reduce((a,b)=>a+b,0)||1,domIdx=s.stratCounts.indexOf(Math.max(...s.stratCounts));
+  STRATS.forEach((_,i)=>{const c=s.stratCounts[i];
+    $('sCnt'+i).textContent=c;$('sBar'+i).style.width=(c/total*100)+'%';
+    $('sRow'+i).className='strat'+(i===domIdx?' dom':'');});
+  const[ph,tx]=getInsight(s);insightBox.className='insight '+ph;insightBox.textContent=tx;
+}
 
-  // Rabbit
-  drawRabbit();
-
-  // Convergence
+// ════════════ LOOP ════════════
+function loop(ts){
+  requestAnimationFrame(loop);
+  const spd=+speedSlider.value,msPerStep=1400/spd;
+  const dt=ts-(lastTs||ts);lastTs=ts;accMs+=dt;
+  if(running&&state&&!state.done){
+    tweenT=Math.min(1,accMs/msPerStep);
+    if(accMs>=msPerStep){accMs=0;step(state);updateUI();}
+  }
+  if(viewMode==='3d'&&autoRotate&&running)yaw+=0.0045;
+  frameN++;
+  const frac=running&&!state.done?tweenT:1;
+  if(viewMode==='2d')draw2D(frac);else draw3D(frac);
   drawConv();
 }
 
-function drawMinima() {
-  const fn = state.fn;
-  const positions = fn.id === 'himmelblau'
-    ? [[3.0,2.0],[-2.805,3.131],[-3.779,-3.283],[3.584,-1.848]]
-    : fn.id === 'holder'
-    ? [[8.0551,9.6646],[-8.0551,9.6646],[8.0551,-9.6646],[-8.0551,-9.6646]]
-    : [fn.minPos];
-  ctx.save();
-  ctx.setLineDash([4,5]);
-  ctx.strokeStyle = 'rgba(255,255,255,0.28)';
-  ctx.lineWidth = 1;
-  positions.forEach(([mx,my]) => {
-    const [cx,cy] = toC(mx,my);
-    ctx.beginPath(); ctx.arc(cx,cy,10,0,Math.PI*2); ctx.stroke();
-    ctx.fillStyle='rgba(255,255,255,0.18)';
-    ctx.font='9px monospace';
-    ctx.fillText('min',cx+12,cy-4);
-  });
-  ctx.setLineDash([]);
-  ctx.restore();
+function resetState(){state=initState();accMs=0;tweenT=1;running=true;
+  btnPlay.textContent='⏸ Pause';btnPlay.className='btn primary';updateUI();}
+
+// ════════════ CONTROLS ════════════
+btnPlay.addEventListener('click',()=>{if(state?.done){resetState();return;}
+  running=!running;btnPlay.textContent=running?'⏸ Pause':'▶ Play';if(running)accMs=0;});
+btnStep.addEventListener('click',()=>{if(!state||state.done)return;running=false;
+  btnPlay.textContent='▶ Play';accMs=0;tweenT=1;step(state);updateUI();});
+btnReset.addEventListener('click',resetState);
+speedSlider.addEventListener('input',()=>speedLbl.textContent=speedSlider.value);
+hawkSlider.addEventListener('input',()=>{hawkLbl.textContent=hawkSlider.value;resetState();});
+iterSlider.addEventListener('input',()=>{iterLbl.textContent=iterSlider.value;resetState();});
+$('startBtn').addEventListener('click',()=>$('intro').style.display='none');
+
+$('view2d').addEventListener('click',()=>setView('2d'));
+$('view3d').addEventListener('click',()=>setView('3d'));
+function setView(m){viewMode=m;
+  $('view2d').classList.toggle('active',m==='2d');$('view3d').classList.toggle('active',m==='3d');
+  canvasHint.textContent=m==='2d'?'Top-down view — dark areas are better solutions':'3D landscape — valleys are good. Drag to rotate · scroll to tilt';
 }
 
-function drawTrail(hawk) {
-  const trail = hawk.trail;
-  if (trail.length < 2) return;
-  const [r,g,b] = hexRgb(STRATS[hawk.strat].color);
-  for (let i = 1; i < trail.length; i++) {
-    const alpha = (i/trail.length)*0.4;
-    ctx.strokeStyle = `rgba(${r},${g},${b},${alpha})`;
-    ctx.lineWidth = 1.2;
-    const [x0,y0] = toC(trail[i-1].x, trail[i-1].y);
-    const [x1,y1] = toC(trail[i].x, trail[i].y);
-    ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1,y1); ctx.stroke();
-  }
+// 3D drag to rotate
+mainCanvas.addEventListener('mousedown',e=>{if(viewMode!=='3d')return;dragging=true;autoRotate=false;lastMx=e.clientX;lastMy=e.clientY;});
+window.addEventListener('mouseup',()=>dragging=false);
+window.addEventListener('mousemove',e=>{if(!dragging)return;
+  yaw+=(e.clientX-lastMx)*0.008;pitch=clamp(pitch+(e.clientY-lastMy)*0.006,0.25,1.45);
+  lastMx=e.clientX;lastMy=e.clientY;});
+mainCanvas.addEventListener('dblclick',()=>{if(viewMode==='3d')autoRotate=!autoRotate;});
+mainCanvas.addEventListener('wheel',e=>{if(viewMode!=='3d')return;e.preventDefault();
+  pitch=clamp(pitch+e.deltaY*0.0015,0.25,1.45);},{passive:false});
+
+// ════════════ INIT ════════════
+function init(){
+  ro.observe(mainCanvas.parentElement);ro.observe(convCanvas.parentElement);
+  resize();state=initState();updateUI();requestAnimationFrame(loop);
 }
-
-function drawHawk(hawk) {
-  const [cx,cy] = toC(hawk.x, hawk.y);
-  const [r,g,b] = hexRgb(STRATS[hawk.strat].color);
-  // Glow
-  const grd = ctx.createRadialGradient(cx,cy,0,cx,cy,12);
-  grd.addColorStop(0, `rgba(${r},${g},${b},0.6)`);
-  grd.addColorStop(1, `rgba(${r},${g},${b},0)`);
-  ctx.fillStyle = grd;
-  ctx.beginPath(); ctx.arc(cx,cy,12,0,Math.PI*2); ctx.fill();
-  // Core
-  ctx.fillStyle = STRATS[hawk.strat].color;
-  ctx.beginPath(); ctx.arc(cx,cy,3.5,0,Math.PI*2); ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.4)';
-  ctx.lineWidth = 0.5;
-  ctx.stroke();
-}
-
-function drawRabbit() {
-  const { rabbit } = state;
-  const [cx,cy] = toC(rabbit.x, rabbit.y);
-  const pulse = 1 + 0.22*Math.sin(frameN * 0.08);
-  const sz = 9 * pulse;
-  // Outer glow
-  const grd = ctx.createRadialGradient(cx,cy,0,cx,cy,sz*3);
-  grd.addColorStop(0,'rgba(251,191,36,0.45)');
-  grd.addColorStop(1,'rgba(251,191,36,0)');
-  ctx.fillStyle = grd;
-  ctx.beginPath(); ctx.arc(cx,cy,sz*3,0,Math.PI*2); ctx.fill();
-  // Diamond
-  ctx.fillStyle='#fbbf24';
-  ctx.strokeStyle='rgba(255,255,255,0.6)';
-  ctx.lineWidth=1.2;
-  ctx.beginPath();
-  ctx.moveTo(cx, cy-sz);
-  ctx.lineTo(cx+sz*0.62, cy);
-  ctx.lineTo(cx, cy+sz);
-  ctx.lineTo(cx-sz*0.62, cy);
-  ctx.closePath();
-  ctx.fill(); ctx.stroke();
-  // Label
-  ctx.fillStyle='#fbbf24';
-  ctx.font='bold 10px monospace';
-  ctx.fillText(`f=${rabbit.fit.toFixed(4)}`, cx+14, cy-6);
-}
-
-function drawConv() {
-  const W = convCanvas.width, H = convCanvas.height;
-  cvx.clearRect(0,0,W,H);
-  cvx.fillStyle='#06101e';
-  cvx.fillRect(0,0,W,H);
-  const conv = state.conv;
-  if (conv.length < 2) return;
-  const p = 4;
-  const maxV = conv[0];
-  const minV = Math.min(...conv);
-  const range = maxV - minV || 1;
-  // Fill area
-  cvx.beginPath();
-  conv.forEach((v,i) => {
-    const x = p + (i/(conv.length-1))*(W-2*p);
-    const y = p + ((maxV-v)/range)*(H-2*p);
-    i===0 ? cvx.moveTo(x,y) : cvx.lineTo(x,y);
-  });
-  cvx.lineTo(p+(W-2*p), H-p);
-  cvx.lineTo(p, H-p);
-  cvx.closePath();
-  cvx.fillStyle='rgba(59,130,246,0.1)';
-  cvx.fill();
-  // Line
-  cvx.beginPath();
-  conv.forEach((v,i) => {
-    const x = p + (i/(conv.length-1))*(W-2*p);
-    const y = p + ((maxV-v)/range)*(H-2*p);
-    i===0 ? cvx.moveTo(x,y) : cvx.lineTo(x,y);
-  });
-  cvx.strokeStyle='#3b82f6';
-  cvx.lineWidth=1.5;
-  cvx.stroke();
-  // Labels
-  cvx.fillStyle='rgba(59,130,246,0.5)';
-  cvx.font='9px monospace';
-  cvx.fillText(`Start: ${conv[0].toFixed(3)}`, p+2, p+10);
-  cvx.fillStyle='#60a5fa';
-  cvx.fillText(`Now: ${conv[conv.length-1].toFixed(4)}`, W-70, p+10);
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  UI updates
-// ═══════════════════════════════════════════════════════════════
-function getInsight(s) {
-  if (!s) return ['explore', 'Initializing…'];
-  if (s.done) {
-    return ['exploit', `✅ Done! After ${s.T} iterations, the best solution found is f(${s.rabbit.x.toFixed(3)}, ${s.rabbit.y.toFixed(3)}) = ${s.rabbit.fit.toFixed(4)}. The hawks have captured the rabbit.`];
-  }
-  const e = s.lastE;
-  const dom = s.stratCounts.indexOf(Math.max(...s.stratCounts));
-  const domStrat = STRATS[dom];
-  if (e >= 1) {
-    return ['explore', `🔍 Exploration phase — hawks are spread across the landscape, testing many locations. The dominant behavior right now is "${domStrat.name}": ${domStrat.plain}`];
-  } else if (e >= 0.5) {
-    return ['transit', `⚡ Transition phase — energy is dropping. Hawks are starting to focus, but still making exploratory dives. "${domStrat.name}" is leading: ${domStrat.plain}`];
-  } else {
-    return ['exploit', `🎯 Exploitation phase — hawks are converging hard on the best zone. "${domStrat.name}" is dominant: ${domStrat.plain}`];
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  Animation loop
-// ═══════════════════════════════════════════════════════════════
-function loop(ts) {
-  animId = requestAnimationFrame(loop);
-  const spd = parseInt(speedSlider.value);
-  const msPerStep = 1000 / spd;
-  const dt = ts - (lastTs||ts);
-  lastTs = ts;
-  accMs += dt;
-  if (running && state && !state.done && accMs >= msPerStep) {
-    accMs = 0;
-    step(state);
-    updateUI();
-  }
-  frameN++;
-  draw();
-}
-
-function resetState() {
-  state = initState();
-  accMs = 0;
-  running = true;
-  btnPlay.innerHTML = '<span class="btn-icon">⏸</span>Pause';
-  btnPlay.className = 'btn primary';
-  updateUI();
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  Controls
-// ═══════════════════════════════════════════════════════════════
-btnPlay.addEventListener('click', () => {
-  if (state?.done) { resetState(); return; }
-  running = !running;
-  btnPlay.innerHTML = running ? '<span class="btn-icon">⏸</span>Pause' : '<span class="btn-icon">▶</span>Play';
-  if (running) accMs = 0;
-});
-
-btnStep.addEventListener('click', () => {
-  if (!state || state.done) return;
-  running = false;
-  btnPlay.innerHTML = '<span class="btn-icon">▶</span>Play';
-  step(state); updateUI();
-});
-
-btnReset.addEventListener('click', resetState);
-
-speedSlider.addEventListener('input', () => { speedLbl.textContent = speedSlider.value; });
-hawkSlider.addEventListener('input', () => { hawkLbl.textContent = hawkSlider.value; resetState(); });
-iterSlider.addEventListener('input', () => { iterLbl.textContent = iterSlider.value; resetState(); });
-
-document.getElementById('startBtn').addEventListener('click', () => {
-  document.getElementById('intro').style.display = 'none';
-});
-
-// ═══════════════════════════════════════════════════════════════
-//  Init
-// ═══════════════════════════════════════════════════════════════
-function init() {
-  resize();
-  state = initState();
-  updateUI();
-  requestAnimationFrame(loop);
-}
-
-window.addEventListener('resize', () => { resize(); });
+window.addEventListener('resize',resize);
 init();
-
-function updateUI() {
-  if (!state) return;
-  const s = state;
-  const e = Math.min(s.lastE, 1);
-  energyFill.style.width = (e*100)+'%';
-  energyFill.style.background = e>0.6?'#3b82f6':e>0.3?'#f59e0b':'#ef4444';
-  energyVal.textContent = `|E| = ${e.toFixed(3)}`;
-  if (e>=1){phaseBadge.className='phase-badge explore';phaseBadge.textContent='EXPLORING';}
-  else if(e>=0.5){phaseBadge.className='phase-badge transit';phaseBadge.textContent='TRANSITIONING';}
-  else{phaseBadge.className='phase-badge exploit';phaseBadge.textContent='EXPLOITING';}
-  rabX.textContent=s.rabbit.x.toFixed(5);
-  rabY.textContent=s.rabbit.y.toFixed(5);
-  rabF.textContent=s.rabbit.fit.toFixed(6);
-  const fn=s.fn;
-  trueMin.textContent=fn.minLabel;
-  const[mx,my]=fn.minPos;
-  const dist=Math.sqrt((s.rabbit.x-mx)**2+(s.rabbit.y-my)**2);
-  rabDist.textContent=dist.toFixed(5);
-  document.getElementById('sIter').textContent=`${s.t}/${s.T}`;
-  document.getElementById('sBest').textContent=s.rabbit.fit.toFixed(4);
-  document.getElementById('sPhase').textContent=e>=1?'🔍':e>=0.5?'⚡':'🎯';
-  const total=s.stratCounts.reduce((a,b)=>a+b,0)||1;
-  const domIdx=s.stratCounts.indexOf(Math.max(...s.stratCounts));
-  STRATS.forEach((_,i)=>{
-    const cnt=s.stratCounts[i];
-    document.getElementById(`sCnt${i}`).textContent=cnt;
-    document.getElementById(`sBar${i}`).style.width=(cnt/total*100)+'%';
-    document.getElementById(`sRow${i}`).className='strat-row'+(i===domIdx?' dominant':'');
-  });
-  const[phase,text]=getInsight(s);
-  insightBox.className=`insight-box ${phase}`;
-  insightBox.textContent=text;
-}
 </script>
 </body>
 </html>
