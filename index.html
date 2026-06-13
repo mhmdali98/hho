@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Harris Hawks Optimization — Live Visualization</title>
+<style>
+  :root {
+    --bg: #050a14;
+    --panel: #0b1628;
+    --border: #1a2d4a;
+    --text: #c8d8f0;
+    --dim: #5a7090;
+    --gold: #ffd700;
+    --s0: #7c3aed; /* Exploration A */
+    --s1: #2563eb; /* Exploration B */
+    --s2: #059669; /* Soft Besiege */
+    --s3: #dc2626; /* Hard Besiege */
+    --s4: #d97706; /* Soft+Lévy */
+    --s5: #db2777; /* Hard+Lévy */
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 13px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: var(--panel);
+  }
+  header h1 { font-size: 16px; font-weight: 600; letter-spacing: .5px; color: #e8f0ff; }
+  header span { color: var(--dim); font-size: 12px; }
+  .main {
+    display: grid;
+    grid-template-columns: 1fr 260px;
+    grid-template-rows: 1fr auto;
+    flex: 1;
+    gap: 0;
+    min-height: 0;
+  }
+  #canvas-wrap {
+    position: relative;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  #mainCanvas {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    display: block;
+    width: 100%;
+    max-width: 700px;
+    cursor: crosshair;
+  }
+  .sidebar {
+    border-left: 1px solid var(--border);
+    background: var(--panel);
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    overflow-y: auto;
+  }
+  .panel {
+    border-bottom: 1px solid var(--border);
+    padding: 14px 16px;
+  }
+  .panel-title {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--dim);
+    margin-bottom: 10px;
+  }
+  /* Controls */
+  .btn-row { display: flex; gap: 6px; margin-bottom: 10px; }
+  button {
+    background: #132038;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 5px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background .15s, border-color .15s;
+  }
+  button:hover { background: #1c3255; border-color: #2a4a7a; }
+  button.active { background: #1a4a8a; border-color: #3a6aaa; color: #fff; }
+  .slider-row { display: flex; flex-direction: column; gap: 8px; }
+  .slider-group label {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+    color: var(--dim);
+    font-size: 11px;
+  }
+  .slider-group label span { color: var(--text); font-weight: 600; }
+  input[type=range] {
+    width: 100%;
+    appearance: none;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    appearance: none;
+    width: 13px; height: 13px;
+    border-radius: 50%;
+    background: #4a80c8;
+    cursor: pointer;
+  }
+  /* Strategy Legend */
+  .legend-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 6px;
+    border-radius: 4px;
+    transition: background .2s;
+    margin-bottom: 2px;
+  }
+  .legend-row.dominant { background: rgba(255,255,255,.06); }
+  .legend-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 6px currentColor;
+  }
+  .legend-label { font-size: 11px; line-height: 1.3; }
+  .legend-count { margin-left: auto; font-size: 11px; color: var(--dim); min-width: 18px; text-align: right; }
+  /* Energy bar */
+  .energy-track {
+    background: var(--border);
+    border-radius: 3px;
+    height: 8px;
+    overflow: hidden;
+    margin-bottom: 6px;
+  }
+  #energyBar {
+    height: 100%;
+    border-radius: 3px;
+    transition: width .1s, background .3s;
+    background: #4a80c8;
+  }
+  .energy-labels { display: flex; justify-content: space-between; font-size: 10px; color: var(--dim); }
+  /* Stats */
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stat { background: #0d1e35; border-radius: 4px; padding: 8px; }
+  .stat-val { font-size: 17px; font-weight: 700; color: #e8f0ff; }
+  .stat-name { font-size: 10px; color: var(--dim); margin-top: 2px; }
+  /* Convergence chart */
+  #convCanvas {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    display: block;
+  }
+  /* Status bar */
+  #statusBar {
+    padding: 8px 12px;
+    border-top: 1px solid var(--border);
+    background: #070f1e;
+    font-size: 12px;
+    color: #8aaccc;
+    min-height: 34px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    grid-column: 1 / -1;
+  }
+  .status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #3a8;
+    flex-shrink: 0;
+    animation: pulse-dot 1.4s infinite;
+  }
+  @keyframes pulse-dot {
+    0%,100% { opacity: 1; }
+    50% { opacity: .3; }
+  }
+  .status-dot.paused { background: #888; animation: none; }
+  /* Rabbit info */
+  .rabbit-info { display: flex; flex-direction: column; gap: 4px; }
+  .rabbit-pos { font-size: 12px; color: var(--gold); font-weight: 600; }
+  .rabbit-fit { font-size: 11px; color: var(--dim); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Harris Hawks Optimization</h1>
+  <span>Real-time algorithm visualization on Rastrigin f(x,y)</span>
+</header>
+
+<div class="main">
+  <div id="canvas-wrap">
+    <canvas id="mainCanvas"></canvas>
+    <canvas id="convCanvas" height="80"></canvas>
+  </div>
+
+  <div class="sidebar">
+    <!-- Controls -->
+    <div class="panel">
+      <div class="panel-title">Controls</div>
+      <div class="btn-row">
+        <button id="btnPlay" class="active">⏸ Pause</button>
+        <button id="btnStep">⏭ Step</button>
+        <button id="btnReset">↺ Reset</button>
+      </div>
+      <div class="slider-row">
+        <div class="slider-group">
+          <label>Speed <span id="speedVal">5</span></label>
+          <input type="range" id="speedSlider" min="1" max="10" value="5">
+        </div>
+        <div class="slider-group">
+          <label>Hawks <span id="hawkVal">10</span></label>
+          <input type="range" id="hawkSlider" min="5" max="30" value="10">
+        </div>
+        <div class="slider-group">
+          <label>Max Iterations <span id="iterVal">200</span></label>
+          <input type="range" id="iterSlider" min="50" max="500" value="200" step="50">
+        </div>
+      </div>
+    </div>
+
+    <!-- Energy -->
+    <div class="panel">
+      <div class="panel-title">Escape Energy |E|</div>
+      <div class="energy-track"><div id="energyBar" style="width:100%"></div></div>
+      <div class="energy-labels">
+        <span>Exploit (0)</span>
+        <span id="energyVal">1.00</span>
+        <span>Explore (1)</span>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="panel">
+      <div class="panel-title">Statistics</div>
+      <div class="stat-grid">
+        <div class="stat">
+          <div class="stat-val" id="statIter">0</div>
+          <div class="stat-name">Iteration</div>
+        </div>
+        <div class="stat">
+          <div class="stat-val" id="statBest">—</div>
+          <div class="stat-name">Best f(x,y)</div>
+        </div>
+      </div>
+      <div style="margin-top:8px" class="rabbit-info">
+        <div class="rabbit-pos" id="rabbitPos">Rabbit: —</div>
+        <div class="rabbit-fit" id="rabbitFit">Distance to (0,0): —</div>
+      </div>
+    </div>
+
+    <!-- Strategy Legend -->
+    <div class="panel">
+      <div class="panel-title">Strategy Legend</div>
+      <div id="legendRows"></div>
+    </div>
+
+    <!-- Convergence -->
+    <div class="panel" style="flex:1;min-height:120px">
+      <div class="panel-title">Convergence</div>
+    </div>
+  </div>
+
+  <div id="statusBar">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">Initializing hawks…</span>
+  </div>
+</div>
+
+<script>
+// ─── Constants ───────────────────────────────────────────────────────────────
+const STRATEGIES = [
+  { name: 'Exploration A',       desc: '|E|≥1, q≥0.5 — perch near random hawk',          color: '#7c3aed' },
+  { name: 'Exploration B',       desc: '|E|≥1, q<0.5 — group-mean + rabbit drift',       color: '#2563eb' },
+  { name: 'Soft Besiege',        desc: '|E|<1, p≥0.5, |E|≥0.5 — gentle encircle',       color: '#059669' },
+  { name: 'Hard Besiege',        desc: '|E|<1, p≥0.5, |E|<0.5 — direct attack',         color: '#dc2626' },
+  { name: 'Soft Besiege+Lévy',   desc: '|E|<1, p<0.5, |E|≥0.5 — Lévy dive, keep best', color: '#d97706' },
+  { name: 'Hard Besiege+Lévy',   desc: '|E|<1, p<0.5, |E|<0.5 — group Lévy dive',      color: '#db2777' },
+];
+
+const BOUNDS = [-5.12, 5.12];
+const TRAIL_LEN = 12;
+const HMAP_RES = 350; // offscreen resolution
+
+// ─── DOM refs ─────────────────────────────────────────────────────────────────
+const mainCanvas = document.getElementById('mainCanvas');
+const ctx = mainCanvas.getContext('2d');
+const convCanvas = document.getElementById('convCanvas');
+const convCtx = convCanvas.getContext('2d');
+const energyBar = document.getElementById('energyBar');
+const energyVal = document.getElementById('energyVal');
+const statIter = document.getElementById('statIter');
+const statBest = document.getElementById('statBest');
+const rabbitPos = document.getElementById('rabbitPos');
+const rabbitFit = document.getElementById('rabbitFit');
+const statusText = document.getElementById('statusText');
+const statusDot = document.getElementById('statusDot');
+const legendRows = document.getElementById('legendRows');
+const btnPlay = document.getElementById('btnPlay');
+const btnStep = document.getElementById('btnStep');
+const btnReset = document.getElementById('btnReset');
+const speedSlider = document.getElementById('speedSlider');
+const hawkSlider = document.getElementById('hawkSlider');
+const iterSlider = document.getElementById('iterSlider');
+const speedVal = document.getElementById('speedVal');
+const hawkVal = document.getElementById('hawkVal');
+const iterVal = document.getElementById('iterVal');
+
+// ─── Build legend rows ────────────────────────────────────────────────────────
+STRATEGIES.forEach((s, i) => {
+  const row = document.createElement('div');
+  row.className = 'legend-row';
+  row.id = `legRow${i}`;
+  row.innerHTML = `
+    <div class="legend-dot" style="background:${s.color};color:${s.color}"></div>
+    <div class="legend-label">${s.name}</div>
+    <div class="legend-count" id="legCnt${i}">0</div>`;
+  legendRows.appendChild(row);
+});
+
+// ─── Math helpers ─────────────────────────────────────────────────────────────
+const rand = () => Math.random();
+const randRange = (a, b) => a + rand() * (b - a);
+
+function rastrigin(x, y) {
+  return 20 + x*x - 10*Math.cos(2*Math.PI*x) + y*y - 10*Math.cos(2*Math.PI*y);
+}
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+function levyFlight(beta = 1.5) {
+  const num = Math.sin(Math.PI * beta / 2) * gamma(1 + beta);
+  const den = gamma((1 + beta) / 2) * beta * Math.pow(2, (beta - 1) / 2);
+  const sigma = Math.pow(Math.abs(num / den), 1 / beta);
+  const u = randNorm() * sigma;
+  const v = Math.abs(randNorm());
+  return u / Math.pow(v, 1 / beta);
+}
+
+function randNorm() {
+  // Box-Muller
+  let u, v;
+  do { u = rand(); } while (u === 0);
+  do { v = rand(); } while (v === 0);
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+// Lanczos gamma approximation
+function gamma(z) {
+  const g = 7;
+  const c = [0.99999999999980993,676.5203681218851,-1259.1392167224028,
+    771.32342877765313,-176.61502916214059,12.507343278686905,
+    -0.13857109526572012,9.9843695780195716e-6,1.5056327351493116e-7];
+  if (z < 0.5) return Math.PI / (Math.sin(Math.PI * z) * gamma(1 - z));
+  z -= 1;
+  let x = c[0];
+  for (let i = 1; i < g + 2; i++) x += c[i] / (z + i);
+  const t = z + g + 0.5;
+  return Math.sqrt(2 * Math.PI) * Math.pow(t, z + 0.5) * Math.exp(-t) * x;
+}
+
+// ─── Heatmap offscreen canvas ─────────────────────────────────────────────────
+const hmapCanvas = document.createElement('canvas');
+hmapCanvas.width = hmapCanvas.height = HMAP_RES;
+const hmapCtx = hmapCanvas.getContext('2d');
+
+function buildHeatmap() {
+  const img = hmapCtx.createImageData(HMAP_RES, HMAP_RES);
+  const d = img.data;
+  const MAX_F = 80; // approx max in domain for normalization
+  for (let py = 0; py < HMAP_RES; py++) {
+    for (let px = 0; px < HMAP_RES; px++) {
+      const x = BOUNDS[0] + (px / (HMAP_RES - 1)) * (BOUNDS[1] - BOUNDS[0]);
+      const y = BOUNDS[0] + (py / (HMAP_RES - 1)) * (BOUNDS[1] - BOUNDS[0]);
+      const f = rastrigin(x, y);
+      const t = Math.min(f / MAX_F, 1);
+      // Color: dark navy at low f → teal/cyan at high f
+      const r = Math.round(t * 15 + (1 - t) * 4);
+      const g = Math.round(t * 45 + (1 - t) * 12);
+      const b = Math.round(t * 90 + (1 - t) * 35);
+      const idx = (py * HMAP_RES + px) * 4;
+      d[idx]   = r;
+      d[idx+1] = g;
+      d[idx+2] = b;
+      d[idx+3] = 255;
+    }
+  }
+  hmapCtx.putImageData(img, 0, 0);
+}
+buildHeatmap();
+
+// ─── State ────────────────────────────────────────────────────────────────────
+let state = null;
+let running = true;
+let animId = null;
+let lastTime = 0;
+let accTime = 0;
+
+function initState() {
+  const N = parseInt(hawkSlider.value);
+  const T = parseInt(iterSlider.value);
+  const hawks = Array.from({length: N}, () => {
+    const x = randRange(BOUNDS[0], BOUNDS[1]);
+    const y = randRange(BOUNDS[0], BOUNDS[1]);
+    return { x, y, fit: rastrigin(x, y), strategy: 0, trail: [] };
+  });
+  // Find best
+  let rabbit = hawks.reduce((b, h) => h.fit < b.fit ? h : b, hawks[0]);
+  rabbit = { x: rabbit.x, y: rabbit.y, fit: rabbit.fit };
+
+  return {
+    hawks, rabbit, T, t: 0,
+    convergence: [],
+    strategyCounts: new Array(6).fill(0),
+    lastE: 1,
+    done: false,
+  };
+}
+
+// ─── HHO iteration ───────────────────────────────────────────────────────────
+function hhoStep(s) {
+  if (s.done) return;
+  const { hawks, T } = s;
+  const t = s.t;
+  const N = hawks.length;
+  const E0 = randRange(-1, 1);
+  const E = 2 * E0 * (1 - t / T);
+  const absE = Math.abs(E);
+  s.lastE = absE;
+
+  // Group mean
+  const mx = hawks.reduce((a, h) => a + h.x, 0) / N;
+  const my = hawks.reduce((a, h) => a + h.y, 0) / N;
+
+  const counts = new Array(6).fill(0);
+
+  hawks.forEach(hawk => {
+    // Save trail
+    hawk.trail.push({ x: hawk.x, y: hawk.y });
+    if (hawk.trail.length > TRAIL_LEN) hawk.trail.shift();
+
+    let nx = hawk.x, ny = hawk.y, strat;
+    const p = rand();
+    const q = rand();
+    const r1 = rand(), r2 = rand(), r3 = rand(), r4 = rand();
+    const randHawk = hawks[Math.floor(rand() * N)];
+
+    if (absE >= 1) {
+      // Exploration phase
+      if (q >= 0.5) {
+        // Strategy 0: perch near random hawk
+        strat = 0;
+        nx = randHawk.x - rand() * Math.abs(randHawk.x - 2 * rand() * hawk.x);
+        ny = randHawk.y - rand() * Math.abs(randHawk.y - 2 * rand() * hawk.y);
+      } else {
+        // Strategy 1: rabbit + group mean
+        strat = 1;
+        nx = (s.rabbit.x - mx) - rand() * (randRange(BOUNDS[0], BOUNDS[1]));
+        ny = (s.rabbit.y - my) - rand() * (randRange(BOUNDS[0], BOUNDS[1]));
+      }
+    } else {
+      // Exploitation phase
+      const J = 2 * (1 - rand());
+      const dx = s.rabbit.x - hawk.x;
+      const dy = s.rabbit.y - hawk.y;
+
+      if (p >= 0.5) {
+        if (absE >= 0.5) {
+          // Strategy 2: Soft Besiege
+          strat = 2;
+          nx = dx - E * Math.abs(J * s.rabbit.x - hawk.x);
+          ny = dy - E * Math.abs(J * s.rabbit.y - hawk.y);
+        } else {
+          // Strategy 3: Hard Besiege
+          strat = 3;
+          nx = s.rabbit.x - E * Math.abs(dx);
+          ny = s.rabbit.y - E * Math.abs(dy);
+        }
+      } else {
+        const lx = levyFlight(), ly = levyFlight();
+        if (absE >= 0.5) {
+          // Strategy 4: Soft Besiege + Lévy
+          strat = 4;
+          const Yx = s.rabbit.x - E * Math.abs(J * s.rabbit.x - hawk.x);
+          const Yy = s.rabbit.y - E * Math.abs(J * s.rabbit.y - hawk.y);
+          const Zx = Yx + rand() * lx;
+          const Zy = Yy + rand() * ly;
+          const fY = rastrigin(clamp(Yx, ...BOUNDS), clamp(Yy, ...BOUNDS));
+          const fZ = rastrigin(clamp(Zx, ...BOUNDS), clamp(Zy, ...BOUNDS));
+          [nx, ny] = fY < fZ ? [Yx, Yy] : [Zx, Zy];
+        } else {
+          // Strategy 5: Hard Besiege + Lévy
+          strat = 5;
+          const Yx = s.rabbit.x - E * Math.abs(J * s.rabbit.x - mx);
+          const Yy = s.rabbit.y - E * Math.abs(J * s.rabbit.y - my);
+          const Zx = Yx + rand() * lx;
+          const Zy = Yy + rand() * ly;
+          const fY = rastrigin(clamp(Yx, ...BOUNDS), clamp(Yy, ...BOUNDS));
+          const fZ = rastrigin(clamp(Zx, ...BOUNDS), clamp(Zy, ...BOUNDS));
+          [nx, ny] = fY < fZ ? [Yx, Yy] : [Zx, Zy];
+        }
+      }
+    }
+
+    // Clamp & greedy
+    nx = clamp(nx, BOUNDS[0], BOUNDS[1]);
+    ny = clamp(ny, BOUNDS[0], BOUNDS[1]);
+    const nf = rastrigin(nx, ny);
+    if (nf < hawk.fit) {
+      hawk.x = nx; hawk.y = ny; hawk.fit = nf;
+    }
+    hawk.strategy = strat;
+    counts[strat]++;
+  });
+
+  s.strategyCounts = counts;
+
+  // Update rabbit
+  hawks.forEach(h => {
+    if (h.fit < s.rabbit.fit) {
+      s.rabbit = { x: h.x, y: h.y, fit: h.fit };
+    }
+  });
+
+  s.convergence.push(s.rabbit.fit);
+  s.t++;
+  if (s.t >= T) s.done = true;
+}
+
+// ─── Coordinate helpers ───────────────────────────────────────────────────────
+let CW, CH;
+function resize() {
+  const wrap = document.getElementById('canvas-wrap');
+  const availH = window.innerHeight - 34 - 42 - 80 - 30; // header, status, conv, gaps
+  const size = Math.min(wrap.clientWidth - 24, availH, 700);
+  mainCanvas.width = size;
+  mainCanvas.height = size;
+  CW = CH = size;
+  convCanvas.width = wrap.clientWidth - 24;
+  convCanvas.height = 80;
+}
+
+function toCanvas(x, y) {
+  const pad = 20;
+  const cx = pad + ((x - BOUNDS[0]) / (BOUNDS[1] - BOUNDS[0])) * (CW - 2*pad);
+  const cy = pad + ((y - BOUNDS[0]) / (BOUNDS[1] - BOUNDS[0])) * (CH - 2*pad);
+  return [cx, cy];
+}
+
+// ─── Drawing ──────────────────────────────────────────────────────────────────
+function drawHeatmap() {
+  const pad = 20;
+  ctx.drawImage(hmapCanvas, pad, pad, CW - 2*pad, CH - 2*pad);
+}
+
+function hexToRgb(hex) {
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  return `${r},${g},${b}`;
+}
+
+function drawGlobalMin() {
+  const [cx, cy] = toCanvas(0, 0);
+  ctx.save();
+  ctx.setLineDash([4, 4]);
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 12, 0, Math.PI*2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.font = '9px monospace';
+  ctx.fillText('(0,0)', cx + 14, cy - 4);
+  ctx.restore();
+}
+
+function drawTrails(hawks) {
+  hawks.forEach(hawk => {
+    const trail = hawk.trail;
+    if (trail.length < 2) return;
+    const col = STRATEGIES[hawk.strategy].color;
+    const rgb = hexToRgb(col);
+    for (let i = 1; i < trail.length; i++) {
+      const alpha = (i / trail.length) * 0.45;
+      ctx.strokeStyle = `rgba(${rgb},${alpha})`;
+      ctx.lineWidth = 1.2;
+      const [x0, y0] = toCanvas(trail[i-1].x, trail[i-1].y);
+      const [x1, y1] = toCanvas(trail[i].x, trail[i].y);
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(x1, y1);
+      ctx.stroke();
+    }
+  });
+}
+
+function drawHawks(hawks) {
+  hawks.forEach(hawk => {
+    const [cx, cy] = toCanvas(hawk.x, hawk.y);
+    const col = STRATEGIES[hawk.strategy].color;
+    const rgb = hexToRgb(col);
+    // Glow
+    const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, 10);
+    grd.addColorStop(0, `rgba(${rgb},0.7)`);
+    grd.addColorStop(1, `rgba(${rgb},0)`);
+    ctx.fillStyle = grd;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 10, 0, Math.PI*2);
+    ctx.fill();
+    // Core
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 3.5, 0, Math.PI*2);
+    ctx.fill();
+  });
+}
+
+function drawRabbit(rabbit, t) {
+  const [cx, cy] = toCanvas(rabbit.x, rabbit.y);
+  const pulse = 1 + 0.25 * Math.sin(t * 0.06);
+  const size = 8 * pulse;
+  // Outer glow
+  const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, size * 2.5);
+  grd.addColorStop(0, 'rgba(255,215,0,0.5)');
+  grd.addColorStop(1, 'rgba(255,215,0,0)');
+  ctx.fillStyle = grd;
+  ctx.beginPath();
+  ctx.arc(cx, cy, size * 2.5, 0, Math.PI*2);
+  ctx.fill();
+  // Diamond
+  ctx.fillStyle = '#ffd700';
+  ctx.strokeStyle = '#fff8';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - size);
+  ctx.lineTo(cx + size * 0.6, cy);
+  ctx.lineTo(cx, cy + size);
+  ctx.lineTo(cx - size * 0.6, cy);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // Label
+  ctx.fillStyle = '#ffd700';
+  ctx.font = '10px monospace';
+  ctx.fillText(`f=${rabbit.fit.toFixed(3)}`, cx + 10, cy - 4);
+}
+
+function drawAxes() {
+  const pad = 20;
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([2, 4]);
+  // x=0, y=0 gridlines
+  const [zx, zy] = toCanvas(0, 0);
+  ctx.beginPath(); ctx.moveTo(zx, pad); ctx.lineTo(zx, CH - pad); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(pad, zy); ctx.lineTo(CW - pad, zy); ctx.stroke();
+  ctx.setLineDash([]);
+  // Border ticks
+  ctx.fillStyle = 'rgba(255,255,255,0.2)';
+  ctx.font = '9px monospace';
+  const ticks = [-5, -2.5, 0, 2.5, 5];
+  ticks.forEach(v => {
+    const [tx] = toCanvas(v, 0);
+    const [, ty] = toCanvas(0, v);
+    ctx.fillText(v, tx - 6, CH - 4);
+    ctx.fillText(v, 2, ty + 3);
+  });
+}
+
+// ─── Convergence chart ────────────────────────────────────────────────────────
+function drawConvergence(conv) {
+  const W = convCanvas.width, H = convCanvas.height;
+  convCtx.clearRect(0, 0, W, H);
+  convCtx.fillStyle = '#07111f';
+  convCtx.fillRect(0, 0, W, H);
+  if (conv.length < 2) return;
+  const pad = 6;
+  const maxV = conv[0];
+  const minV = Math.max(0, Math.min(...conv));
+  const range = maxV - minV || 1;
+  convCtx.strokeStyle = '#3a6aaa';
+  convCtx.lineWidth = 1;
+  convCtx.strokeRect(pad, pad, W - 2*pad, H - 2*pad);
+  convCtx.beginPath();
+  convCtx.strokeStyle = '#4a9aff';
+  convCtx.lineWidth = 1.5;
+  conv.forEach((v, i) => {
+    const x = pad + (i / (conv.length - 1)) * (W - 2*pad);
+    const y = pad + ((maxV - v) / range) * (H - 2*pad);
+    i === 0 ? convCtx.moveTo(x, y) : convCtx.lineTo(x, y);
+  });
+  convCtx.stroke();
+  // Labels
+  convCtx.fillStyle = '#3a6a9a';
+  convCtx.font = '9px monospace';
+  convCtx.fillText('Convergence', pad + 2, pad + 10);
+  convCtx.fillText(`${conv[conv.length-1].toFixed(4)}`, W - 60, pad + 10);
+}
+
+// ─── Status messages ──────────────────────────────────────────────────────────
+function getStatusMessage(s) {
+  if (!s) return 'Initializing…';
+  if (s.done) return `Algorithm converged after ${s.T} iterations. Best solution: f(${s.rabbit.x.toFixed(3)}, ${s.rabbit.y.toFixed(3)}) = ${s.rabbit.fit.toFixed(4)}`;
+  const absE = s.lastE;
+  const dom = s.strategyCounts.indexOf(Math.max(...s.strategyCounts));
+  if (absE >= 1) {
+    return `Exploration phase (|E|=${absE.toFixed(2)}≥1): hawks scout the full search space, looking for promising regions.`;
+  } else if (absE >= 0.5) {
+    return `Transition phase (|E|=${absE.toFixed(2)}): hawks begin closing in, mixing soft encirclement with Lévy-flight dives.`;
+  } else {
+    return `Exploitation phase (|E|=${absE.toFixed(2)}<0.5): hawks converge hard on the rabbit — ${STRATEGIES[dom].name} is dominant.`;
+  }
+}
+
+// ─── Animation loop ───────────────────────────────────────────────────────────
+let frameCount = 0;
+
+function frame(ts) {
+  animId = requestAnimationFrame(frame);
+  if (!state) return;
+
+  const spd = parseInt(speedSlider.value);
+  const msPerStep = 1200 / spd;
+  accTime += ts - (lastTime || ts);
+  lastTime = ts;
+
+  if (running && !state.done && accTime >= msPerStep) {
+    accTime = 0;
+    hhoStep(state);
+    updateUI();
+  }
+
+  frameCount++;
+  render();
+}
+
+function render() {
+  if (!state) return;
+  ctx.clearRect(0, 0, CW, CH);
+  drawHeatmap();
+  drawAxes();
+  drawGlobalMin();
+  drawTrails(state.hawks);
+  drawHawks(state.hawks);
+  drawRabbit(state.rabbit, frameCount);
+  drawConvergence(state.convergence);
+}
+
+function updateUI() {
+  if (!state) return;
+  // Energy bar
+  const e = Math.min(state.lastE, 1);
+  energyBar.style.width = `${e * 100}%`;
+  energyBar.style.background = e > 0.5 ? '#4a80c8' : e > 0.2 ? '#c87a20' : '#c83030';
+  energyVal.textContent = e.toFixed(3);
+  // Stats
+  statIter.textContent = state.t;
+  statBest.textContent = state.rabbit.fit.toFixed(4);
+  const dist = Math.sqrt(state.rabbit.x**2 + state.rabbit.y**2);
+  rabbitPos.textContent = `Rabbit: (${state.rabbit.x.toFixed(3)}, ${state.rabbit.y.toFixed(3)})`;
+  rabbitFit.textContent = `Distance to (0,0): ${dist.toFixed(4)}`;
+  // Legend
+  const total = state.strategyCounts.reduce((a,b)=>a+b,0)||1;
+  const domIdx = state.strategyCounts.indexOf(Math.max(...state.strategyCounts));
+  STRATEGIES.forEach((_, i) => {
+    document.getElementById(`legCnt${i}`).textContent = state.strategyCounts[i];
+    document.getElementById(`legRow${i}`).className = 'legend-row' + (i === domIdx ? ' dominant' : '');
+  });
+  // Status
+  statusText.textContent = getStatusMessage(state);
+  statusDot.className = 'status-dot' + (running && !state.done ? '' : ' paused');
+}
+
+// ─── Controls ─────────────────────────────────────────────────────────────────
+btnPlay.addEventListener('click', () => {
+  if (state?.done) { resetState(); return; }
+  running = !running;
+  btnPlay.textContent = running ? '⏸ Pause' : '▶ Play';
+  btnPlay.classList.toggle('active', running);
+  statusDot.className = 'status-dot' + (running ? '' : ' paused');
+  if (running) accTime = 0;
+});
+
+btnStep.addEventListener('click', () => {
+  if (!state || state.done) return;
+  running = false;
+  btnPlay.textContent = '▶ Play';
+  btnPlay.classList.remove('active');
+  hhoStep(state);
+  updateUI();
+});
+
+btnReset.addEventListener('click', resetState);
+
+function resetState() {
+  state = initState();
+  running = true;
+  btnPlay.textContent = '⏸ Pause';
+  btnPlay.classList.add('active');
+  accTime = 0;
+  lastTime = 0;
+  updateUI();
+}
+
+speedSlider.addEventListener('input', () => { speedVal.textContent = speedSlider.value; });
+hawkSlider.addEventListener('input', () => { hawkVal.textContent = hawkSlider.value; resetState(); });
+iterSlider.addEventListener('input', () => { iterVal.textContent = iterSlider.value; resetState(); });
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+window.addEventListener('resize', () => { resize(); buildHeatmap(); });
+resize();
+state = initState();
+updateUI();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
