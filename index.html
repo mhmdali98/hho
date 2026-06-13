@@ -3,831 +3,1161 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Harris Hawks Optimization — Live Visualization</title>
+<title>Harris Hawks Optimization — Interactive Visualizer</title>
 <style>
-  :root {
-    --bg: #050a14;
-    --panel: #0b1628;
-    --border: #1a2d4a;
-    --text: #c8d8f0;
-    --dim: #5a7090;
-    --gold: #ffd700;
-    --s0: #7c3aed; /* Exploration A */
-    --s1: #2563eb; /* Exploration B */
-    --s2: #059669; /* Soft Besiege */
-    --s3: #dc2626; /* Hard Besiege */
-    --s4: #d97706; /* Soft+Lévy */
-    --s5: #db2777; /* Hard+Lévy */
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Segoe UI', system-ui, sans-serif;
-    font-size: 13px;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-  }
-  header {
-    padding: 10px 20px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    background: var(--panel);
-  }
-  header h1 { font-size: 16px; font-weight: 600; letter-spacing: .5px; color: #e8f0ff; }
-  header span { color: var(--dim); font-size: 12px; }
-  .main {
-    display: grid;
-    grid-template-columns: 1fr 260px;
-    grid-template-rows: 1fr auto;
-    flex: 1;
-    gap: 0;
-    min-height: 0;
-  }
-  #canvas-wrap {
-    position: relative;
-    padding: 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  #mainCanvas {
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    display: block;
-    width: 100%;
-    max-width: 700px;
-    cursor: crosshair;
-  }
-  .sidebar {
-    border-left: 1px solid var(--border);
-    background: var(--panel);
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-    overflow-y: auto;
-  }
-  .panel {
-    border-bottom: 1px solid var(--border);
-    padding: 14px 16px;
-  }
-  .panel-title {
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: var(--dim);
-    margin-bottom: 10px;
-  }
-  /* Controls */
-  .btn-row { display: flex; gap: 6px; margin-bottom: 10px; }
-  button {
-    background: #132038;
-    border: 1px solid var(--border);
-    color: var(--text);
-    padding: 5px 12px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 12px;
-    transition: background .15s, border-color .15s;
-  }
-  button:hover { background: #1c3255; border-color: #2a4a7a; }
-  button.active { background: #1a4a8a; border-color: #3a6aaa; color: #fff; }
-  .slider-row { display: flex; flex-direction: column; gap: 8px; }
-  .slider-group label {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 4px;
-    color: var(--dim);
-    font-size: 11px;
-  }
-  .slider-group label span { color: var(--text); font-weight: 600; }
-  input[type=range] {
-    width: 100%;
-    appearance: none;
-    height: 4px;
-    background: var(--border);
-    border-radius: 2px;
-    outline: none;
-  }
-  input[type=range]::-webkit-slider-thumb {
-    appearance: none;
-    width: 13px; height: 13px;
-    border-radius: 50%;
-    background: #4a80c8;
-    cursor: pointer;
-  }
-  /* Strategy Legend */
-  .legend-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 5px 6px;
-    border-radius: 4px;
-    transition: background .2s;
-    margin-bottom: 2px;
-  }
-  .legend-row.dominant { background: rgba(255,255,255,.06); }
-  .legend-dot {
-    width: 10px; height: 10px;
-    border-radius: 50%;
-    flex-shrink: 0;
-    box-shadow: 0 0 6px currentColor;
-  }
-  .legend-label { font-size: 11px; line-height: 1.3; }
-  .legend-count { margin-left: auto; font-size: 11px; color: var(--dim); min-width: 18px; text-align: right; }
-  /* Energy bar */
-  .energy-track {
-    background: var(--border);
-    border-radius: 3px;
-    height: 8px;
-    overflow: hidden;
-    margin-bottom: 6px;
-  }
-  #energyBar {
-    height: 100%;
-    border-radius: 3px;
-    transition: width .1s, background .3s;
-    background: #4a80c8;
-  }
-  .energy-labels { display: flex; justify-content: space-between; font-size: 10px; color: var(--dim); }
-  /* Stats */
-  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .stat { background: #0d1e35; border-radius: 4px; padding: 8px; }
-  .stat-val { font-size: 17px; font-weight: 700; color: #e8f0ff; }
-  .stat-name { font-size: 10px; color: var(--dim); margin-top: 2px; }
-  /* Convergence chart */
-  #convCanvas {
-    width: 100%;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    display: block;
-  }
-  /* Status bar */
-  #statusBar {
-    padding: 8px 12px;
-    border-top: 1px solid var(--border);
-    background: #070f1e;
-    font-size: 12px;
-    color: #8aaccc;
-    min-height: 34px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    grid-column: 1 / -1;
-  }
-  .status-dot {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: #3a8;
-    flex-shrink: 0;
-    animation: pulse-dot 1.4s infinite;
-  }
-  @keyframes pulse-dot {
-    0%,100% { opacity: 1; }
-    50% { opacity: .3; }
-  }
-  .status-dot.paused { background: #888; animation: none; }
-  /* Rabbit info */
-  .rabbit-info { display: flex; flex-direction: column; gap: 4px; }
-  .rabbit-pos { font-size: 12px; color: var(--gold); font-weight: 600; }
-  .rabbit-fit { font-size: 11px; color: var(--dim); }
+/* ── Reset & tokens ─────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:       #040c18;
+  --surface:  #07111f;
+  --panel:    #0b1a30;
+  --border:   #162d4e;
+  --border2:  #1e3d68;
+  --text:     #c4d8f4;
+  --dim:      #4a6a90;
+  --bright:   #e8f2ff;
+  --gold:     #fbbf24;
+  --gold2:    #f59e0b;
+  --accent:   #3b82f6;
+  --green:    #10b981;
+  --red:      #ef4444;
+
+  --s0: #8b5cf6;
+  --s1: #3b82f6;
+  --s2: #10b981;
+  --s3: #ef4444;
+  --s4: #f59e0b;
+  --s5: #ec4899;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── Header ─────────────────────────────────────────────────── */
+.header {
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 52px;
+  flex-shrink: 0;
+}
+.header-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.hawk-icon {
+  width: 32px; height: 32px;
+  background: linear-gradient(135deg, #1e3a5f, #3b82f6);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+}
+.header h1 { font-size: 15px; font-weight: 700; color: var(--bright); letter-spacing: .3px; }
+.header-sub { font-size: 11px; color: var(--dim); }
+.header-spacer { flex: 1; }
+.phase-badge {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  border: 1px solid;
+  transition: all .3s;
+}
+.phase-badge.explore { background: rgba(59,130,246,.15); border-color: #3b82f6; color: #60a5fa; }
+.phase-badge.transit { background: rgba(245,158,11,.15); border-color: #f59e0b; color: #fbbf24; }
+.phase-badge.exploit { background: rgba(239,68,68,.15); border-color: #ef4444; color: #f87171; }
+
+/* ── Function selector ──────────────────────────────────────── */
+.fn-bar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 20px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+.fn-bar-label { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: 1px; margin-right: 4px; white-space: nowrap; }
+.fn-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+  min-width: 120px;
+}
+.fn-card:hover { border-color: var(--border2); background: #0f2040; }
+.fn-card.active { border-color: var(--accent); background: rgba(59,130,246,.12); }
+.fn-card .fn-name { font-size: 12px; font-weight: 600; color: var(--bright); }
+.fn-card .fn-desc { font-size: 10px; color: var(--dim); margin-top: 2px; }
+.fn-card .fn-min { font-size: 10px; color: var(--gold); margin-top: 1px; }
+
+/* ── Main layout ─────────────────────────────────────────────── */
+.main {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ── Canvas area ─────────────────────────────────────────────── */
+.canvas-col {
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  gap: 10px;
+  min-height: 0;
+  overflow: hidden;
+}
+.canvas-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+#mainCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+/* ── Convergence + info row ─────────────────────────────────── */
+.bottom-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  height: 100px;
+}
+.mini-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.mini-title { font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: .8px; }
+#convCanvas { flex: 1; width: 100%; display: block; }
+
+/* stat pills */
+.stat-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.stat-pill {
+  display: flex; flex-direction: column; align-items: center;
+  background: #0a1828; border-radius: 6px; padding: 4px 10px;
+  border: 1px solid var(--border);
+  min-width: 64px;
+}
+.stat-val { font-size: 16px; font-weight: 700; color: var(--bright); line-height: 1.1; }
+.stat-lbl { font-size: 9px; color: var(--dim); margin-top: 2px; }
+
+/* ── Sidebar ─────────────────────────────────────────────────── */
+.sidebar {
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+.sb-section {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.sb-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--dim);
+  margin-bottom: 10px;
+}
+
+/* Controls */
+.btn-row { display: flex; gap: 6px; margin-bottom: 12px; }
+.btn {
+  display: flex; align-items: center; gap: 5px;
+  background: #0f2040; border: 1px solid var(--border);
+  color: var(--text); padding: 6px 12px;
+  border-radius: 6px; cursor: pointer;
+  font-size: 12px; font-weight: 500;
+  transition: all .15s; white-space: nowrap;
+}
+.btn:hover { background: #162d4e; border-color: var(--border2); }
+.btn.primary { background: #1e3a6e; border-color: #2d5299; color: #90c0ff; }
+.btn.primary:hover { background: #24468a; }
+.btn-icon { font-size: 13px; }
+
+/* Sliders */
+.slider-block { margin-bottom: 10px; }
+.slider-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--dim); margin-bottom: 5px; }
+.slider-label span { color: var(--text); font-weight: 600; }
+input[type=range] {
+  width: 100%; appearance: none; height: 4px;
+  background: var(--border); border-radius: 2px; outline: none; cursor: pointer;
+}
+input[type=range]::-webkit-slider-thumb {
+  appearance: none; width: 14px; height: 14px;
+  border-radius: 50%; background: var(--accent); cursor: pointer;
+  box-shadow: 0 0 6px rgba(59,130,246,.5);
+}
+
+/* Energy */
+.energy-wrap { margin-bottom: 8px; }
+.energy-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; position: relative; }
+.energy-fill { height: 100%; border-radius: 5px; transition: width .15s, background .3s; }
+.energy-markers { display: flex; justify-content: space-between; font-size: 9px; color: var(--dim); margin-top: 3px; }
+
+/* Strategy legend */
+.strat-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 7px; border-radius: 6px; margin-bottom: 3px;
+  transition: background .2s;
+  cursor: default;
+}
+.strat-row.dominant { background: rgba(255,255,255,.05); }
+.strat-dot {
+  width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+}
+.strat-info { flex: 1; }
+.strat-name { font-size: 11px; color: var(--text); font-weight: 500; }
+.strat-phase { font-size: 9px; color: var(--dim); }
+.strat-bar-wrap { width: 36px; }
+.strat-bar-bg { background: var(--border); height: 4px; border-radius: 2px; overflow: hidden; }
+.strat-bar-fill { height: 100%; border-radius: 2px; transition: width .2s; }
+.strat-count { font-size: 10px; color: var(--dim); min-width: 18px; text-align: right; }
+
+/* Rabbit info */
+.rabbit-card {
+  background: rgba(251,191,36,.07);
+  border: 1px solid rgba(251,191,36,.2);
+  border-radius: 8px; padding: 10px 12px;
+  margin-bottom: 6px;
+}
+.rabbit-header { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.rabbit-header span { font-size: 12px; font-weight: 600; color: var(--gold); }
+.rabbit-row { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 3px; }
+.rabbit-row .lbl { color: var(--dim); }
+.rabbit-row .val { color: var(--bright); font-weight: 600; font-family: monospace; }
+.rabbit-row .val.good { color: var(--green); }
+
+/* Insight box */
+.insight-box {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #a0c0e8;
+  transition: border-color .3s;
+}
+.insight-box.explore { border-left-color: var(--s1); }
+.insight-box.transit { border-left-color: var(--s4); }
+.insight-box.exploit { border-left-color: var(--s3); }
+
+/* Intro overlay */
+.intro {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(4,12,24,.96);
+  display: flex; align-items: center; justify-content: center;
+}
+.intro-card {
+  background: var(--panel);
+  border: 1px solid var(--border2);
+  border-radius: 16px;
+  padding: 36px 40px;
+  max-width: 520px;
+  width: 90%;
+  box-shadow: 0 24px 80px rgba(0,0,0,.6);
+}
+.intro-card h2 { font-size: 22px; color: var(--bright); margin-bottom: 6px; }
+.intro-card .intro-sub { color: var(--dim); font-size: 13px; margin-bottom: 20px; }
+.intro-steps { list-style: none; display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+.intro-steps li { display: flex; gap: 12px; align-items: flex-start; }
+.intro-num {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: rgba(59,130,246,.2); border: 1px solid #3b82f6;
+  color: #60a5fa; font-size: 11px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; margin-top: 1px;
+}
+.intro-steps li p { font-size: 12px; line-height: 1.55; color: var(--text); }
+.intro-steps li strong { color: var(--bright); }
+.intro-btn {
+  width: 100%; padding: 12px;
+  background: linear-gradient(135deg, #1e3a6e, #2d5299);
+  border: 1px solid #3b6ad4; color: #90c0ff;
+  border-radius: 8px; font-size: 14px; font-weight: 600;
+  cursor: pointer; transition: all .2s;
+}
+.intro-btn:hover { background: linear-gradient(135deg, #24468a, #3562b8); }
+
+/* Tooltip */
+.tooltip-wrap { position: relative; display: inline-flex; }
+.tooltip-icon { width: 14px; height: 14px; border-radius: 50%; background: var(--border); color: var(--dim); font-size: 9px; display: flex; align-items: center; justify-content: center; cursor: help; }
+.tooltip-text { position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: #0f2040; border: 1px solid var(--border2); border-radius: 6px; padding: 7px 10px; font-size: 11px; color: var(--text); width: 200px; line-height: 1.5; pointer-events: none; opacity: 0; transition: opacity .15s; z-index: 50; white-space: normal; }
+.tooltip-wrap:hover .tooltip-text { opacity: 1; }
+
+/* scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 </style>
 </head>
 <body>
-<header>
-  <h1>Harris Hawks Optimization</h1>
-  <span>Real-time algorithm visualization on Rastrigin f(x,y)</span>
-</header>
 
+<!-- Intro modal -->
+<div class="intro" id="intro">
+  <div class="intro-card">
+    <h2>🦅 Harris Hawks Optimization</h2>
+    <p class="intro-sub">Watch a flock of hawks hunt prey — and solve complex math problems in the process.</p>
+    <ul class="intro-steps">
+      <li>
+        <div class="intro-num">1</div>
+        <p>The <strong>colored dots are hawks</strong>. They fly around a landscape looking for the lowest valley — which is the best solution to the problem.</p>
+      </li>
+      <li>
+        <div class="intro-num">2</div>
+        <p>The <strong>gold diamond is the rabbit</strong> — the best location found so far. Hawks always try to beat it.</p>
+      </li>
+      <li>
+        <div class="intro-num">3</div>
+        <p><strong>Dark colors = good regions</strong>. The hawks start scattered, then gradually converge on the darkest spot (the true answer).</p>
+      </li>
+      <li>
+        <div class="intro-num">4</div>
+        <p>Each hawk picks a <strong>hunting strategy</strong> based on how close they are to catching the prey. Six strategies are shown in different colors.</p>
+      </li>
+    </ul>
+    <button class="intro-btn" id="startBtn">▶ Start Simulation</button>
+  </div>
+</div>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-logo">
+    <div class="hawk-icon">🦅</div>
+    <div>
+      <h1>Harris Hawks Optimization</h1>
+      <div class="header-sub">Nature-inspired algorithm — hawks hunting prey</div>
+    </div>
+  </div>
+  <div class="header-spacer"></div>
+  <div class="phase-badge explore" id="phaseBadge">EXPLORING</div>
+</div>
+
+<!-- Function selector bar -->
+<div class="fn-bar">
+  <span class="fn-bar-label">Test Function:</span>
+  <!-- cards injected by JS -->
+</div>
+
+<!-- Main -->
 <div class="main">
-  <div id="canvas-wrap">
-    <canvas id="mainCanvas"></canvas>
-    <canvas id="convCanvas" height="80"></canvas>
+  <!-- Left: canvas -->
+  <div class="canvas-col">
+    <div class="canvas-wrap">
+      <canvas id="mainCanvas"></canvas>
+    </div>
+    <div class="bottom-row">
+      <div class="mini-panel">
+        <div class="mini-title">Convergence — Best Solution Over Time</div>
+        <canvas id="convCanvas"></canvas>
+      </div>
+      <div class="mini-panel">
+        <div class="mini-title">Live Statistics</div>
+        <div class="stat-row" id="statRow"></div>
+      </div>
+    </div>
   </div>
 
+  <!-- Right: sidebar -->
   <div class="sidebar">
+
     <!-- Controls -->
-    <div class="panel">
-      <div class="panel-title">Controls</div>
+    <div class="sb-section">
+      <div class="sb-title">Simulation Controls</div>
       <div class="btn-row">
-        <button id="btnPlay" class="active">⏸ Pause</button>
-        <button id="btnStep">⏭ Step</button>
-        <button id="btnReset">↺ Reset</button>
+        <button class="btn primary" id="btnPlay"><span class="btn-icon">⏸</span>Pause</button>
+        <button class="btn" id="btnStep"><span class="btn-icon">⏭</span>Step</button>
+        <button class="btn" id="btnReset"><span class="btn-icon">↺</span>Reset</button>
       </div>
-      <div class="slider-row">
-        <div class="slider-group">
-          <label>Speed <span id="speedVal">5</span></label>
-          <input type="range" id="speedSlider" min="1" max="10" value="5">
+      <div class="slider-block">
+        <div class="slider-label">Animation Speed <span id="speedLbl">5</span></div>
+        <input type="range" id="speedSlider" min="1" max="20" value="5">
+      </div>
+      <div class="slider-block">
+        <div class="slider-label">
+          Number of Hawks
+          <span id="hawkLbl">12</span>
         </div>
-        <div class="slider-group">
-          <label>Hawks <span id="hawkVal">10</span></label>
-          <input type="range" id="hawkSlider" min="5" max="30" value="10">
+        <input type="range" id="hawkSlider" min="5" max="30" value="12">
+      </div>
+      <div class="slider-block">
+        <div class="slider-label">Max Iterations <span id="iterLbl">200</span></div>
+        <input type="range" id="iterSlider" min="50" max="500" value="200" step="50">
+      </div>
+    </div>
+
+    <!-- Escape energy -->
+    <div class="sb-section">
+      <div class="sb-title" style="display:flex;align-items:center;gap:6px">
+        Escape Energy (E)
+        <div class="tooltip-wrap">
+          <div class="tooltip-icon">?</div>
+          <div class="tooltip-text">High energy = hawks explore freely. Low energy = hawks close in on the prey. Energy decreases naturally as iterations pass.</div>
         </div>
-        <div class="slider-group">
-          <label>Max Iterations <span id="iterVal">200</span></label>
-          <input type="range" id="iterSlider" min="50" max="500" value="200" step="50">
+      </div>
+      <div class="energy-wrap">
+        <div class="energy-track"><div class="energy-fill" id="energyFill" style="width:100%;background:#3b82f6"></div></div>
+        <div class="energy-markers">
+          <span>🎯 Exploiting</span>
+          <span id="energyVal">|E| = 1.00</span>
+          <span>🔍 Exploring</span>
         </div>
       </div>
     </div>
 
-    <!-- Energy -->
-    <div class="panel">
-      <div class="panel-title">Escape Energy |E|</div>
-      <div class="energy-track"><div id="energyBar" style="width:100%"></div></div>
-      <div class="energy-labels">
-        <span>Exploit (0)</span>
-        <span id="energyVal">1.00</span>
-        <span>Explore (1)</span>
-      </div>
-    </div>
-
-    <!-- Stats -->
-    <div class="panel">
-      <div class="panel-title">Statistics</div>
-      <div class="stat-grid">
-        <div class="stat">
-          <div class="stat-val" id="statIter">0</div>
-          <div class="stat-name">Iteration</div>
+    <!-- Rabbit -->
+    <div class="sb-section">
+      <div class="sb-title">Best Solution Found (Rabbit)</div>
+      <div class="rabbit-card">
+        <div class="rabbit-header">
+          <span>♦ Rabbit Position</span>
         </div>
-        <div class="stat">
-          <div class="stat-val" id="statBest">—</div>
-          <div class="stat-name">Best f(x,y)</div>
-        </div>
-      </div>
-      <div style="margin-top:8px" class="rabbit-info">
-        <div class="rabbit-pos" id="rabbitPos">Rabbit: —</div>
-        <div class="rabbit-fit" id="rabbitFit">Distance to (0,0): —</div>
+        <div class="rabbit-row"><span class="lbl">x</span><span class="val" id="rabX">—</span></div>
+        <div class="rabbit-row"><span class="lbl">y</span><span class="val" id="rabY">—</span></div>
+        <div class="rabbit-row"><span class="lbl">f(x,y)</span><span class="val" id="rabF">—</span></div>
+        <div class="rabbit-row"><span class="lbl">True min at</span><span class="val" id="trueMin">—</span></div>
+        <div class="rabbit-row"><span class="lbl">Distance to min</span><span class="val good" id="rabDist">—</span></div>
       </div>
     </div>
 
-    <!-- Strategy Legend -->
-    <div class="panel">
-      <div class="panel-title">Strategy Legend</div>
-      <div id="legendRows"></div>
+    <!-- Strategy legend -->
+    <div class="sb-section">
+      <div class="sb-title">Hunting Strategies (6 types)</div>
+      <div id="stratLegend"></div>
     </div>
 
-    <!-- Convergence -->
-    <div class="panel" style="flex:1;min-height:120px">
-      <div class="panel-title">Convergence</div>
+    <!-- Insight -->
+    <div class="sb-section" style="flex:1">
+      <div class="sb-title">What's Happening Now</div>
+      <div class="insight-box explore" id="insightBox">
+        Initializing the hawk flock…
+      </div>
     </div>
-  </div>
 
-  <div id="statusBar">
-    <div class="status-dot" id="statusDot"></div>
-    <span id="statusText">Initializing hawks…</span>
   </div>
 </div>
 
 <script>
-// ─── Constants ───────────────────────────────────────────────────────────────
-const STRATEGIES = [
-  { name: 'Exploration A',       desc: '|E|≥1, q≥0.5 — perch near random hawk',          color: '#7c3aed' },
-  { name: 'Exploration B',       desc: '|E|≥1, q<0.5 — group-mean + rabbit drift',       color: '#2563eb' },
-  { name: 'Soft Besiege',        desc: '|E|<1, p≥0.5, |E|≥0.5 — gentle encircle',       color: '#059669' },
-  { name: 'Hard Besiege',        desc: '|E|<1, p≥0.5, |E|<0.5 — direct attack',         color: '#dc2626' },
-  { name: 'Soft Besiege+Lévy',   desc: '|E|<1, p<0.5, |E|≥0.5 — Lévy dive, keep best', color: '#d97706' },
-  { name: 'Hard Besiege+Lévy',   desc: '|E|<1, p<0.5, |E|<0.5 — group Lévy dive',      color: '#db2777' },
+// ═══════════════════════════════════════════════════════════════
+//  BENCHMARK FUNCTIONS
+// ═══════════════════════════════════════════════════════════════
+const FUNCTIONS = [
+  {
+    id: 'rastrigin',
+    name: 'Rastrigin',
+    desc: 'Many valleys (multimodal)',
+    formula: 'f = 20 + x²−10cos(2πx) + y²−10cos(2πy)',
+    bounds: [-5.12, 5.12],
+    fn: (x, y) => 20 + x*x - 10*Math.cos(2*Math.PI*x) + y*y - 10*Math.cos(2*Math.PI*y),
+    minPos: [0, 0], minVal: 0,
+    minLabel: '(0, 0) → f = 0',
+    mapMax: 80,
+    colorMap: (t) => ({ r: Math.round(4 + t*14), g: Math.round(12 + t*44), b: Math.round(35 + t*80) }),
+  },
+  {
+    id: 'ackley',
+    name: 'Ackley',
+    desc: 'Deceptive flat plateau',
+    formula: 'f = −20·exp(…) − exp(…) + e + 20',
+    bounds: [-5, 5],
+    fn: (x, y) => {
+      const a = 20, b = 0.2, c = 2*Math.PI;
+      return -a * Math.exp(-b * Math.sqrt((x*x+y*y)/2))
+             - Math.exp((Math.cos(c*x)+Math.cos(c*y))/2)
+             + a + Math.E;
+    },
+    minPos: [0, 0], minVal: 0,
+    minLabel: '(0, 0) → f = 0',
+    mapMax: 22,
+    colorMap: (t) => ({ r: Math.round(5 + t*10), g: Math.round(10 + t*35), b: Math.round(30 + t*100) }),
+  },
+  {
+    id: 'sphere',
+    name: 'Sphere',
+    desc: 'Simple bowl (unimodal)',
+    formula: 'f = x² + y²',
+    bounds: [-5, 5],
+    fn: (x, y) => x*x + y*y,
+    minPos: [0, 0], minVal: 0,
+    minLabel: '(0, 0) → f = 0',
+    mapMax: 50,
+    colorMap: (t) => ({ r: Math.round(3 + t*8), g: Math.round(8 + t*20), b: Math.round(40 + t*120) }),
+  },
+  {
+    id: 'rosenbrock',
+    name: 'Rosenbrock',
+    desc: 'Narrow curved valley',
+    formula: 'f = (1−x)² + 100(y−x²)²',
+    bounds: [-2.5, 2.5],
+    fn: (x, y) => Math.pow(1-x, 2) + 100*Math.pow(y - x*x, 2),
+    minPos: [1, 1], minVal: 0,
+    minLabel: '(1, 1) → f = 0',
+    mapMax: 2500,
+    colorMap: (t) => ({ r: Math.round(5 + t*30), g: Math.round(8 + t*15), b: Math.round(20 + t*60) }),
+  },
+  {
+    id: 'himmelblau',
+    name: 'Himmelblau',
+    desc: 'Four equal minima',
+    formula: 'f = (x²+y−11)² + (x+y²−7)²',
+    bounds: [-5, 5],
+    fn: (x, y) => Math.pow(x*x+y-11, 2) + Math.pow(x+y*y-7, 2),
+    minPos: [3.0, 2.0], minVal: 0,
+    minLabel: '4 minima → f = 0',
+    mapMax: 500,
+    colorMap: (t) => ({ r: Math.round(4 + t*20), g: Math.round(5 + t*10), b: Math.round(25 + t*90) }),
+  },
+  {
+    id: 'holder',
+    name: "Hölder Table",
+    desc: 'Rugged landscape',
+    formula: 'f = −|sin(x)·cos(y)·exp(|1−√(x²+y²)/π|)|',
+    bounds: [-10, 10],
+    fn: (x, y) => -Math.abs(Math.sin(x)*Math.cos(y)*Math.exp(Math.abs(1 - Math.sqrt(x*x+y*y)/Math.PI))),
+    minPos: [8.0551, 9.6646], minVal: -19.2085,
+    minLabel: '(±8.055, ±9.665) → f ≈ −19.21',
+    mapMax: 1,
+    colorMap: (t) => ({ r: Math.round(3 + t*10), g: Math.round(6 + t*30), b: Math.round(20 + t*80) }),
+  },
 ];
 
-const BOUNDS = [-5.12, 5.12];
-const TRAIL_LEN = 12;
-const HMAP_RES = 350; // offscreen resolution
+// For Hölder: mapMax is relative to range
+FUNCTIONS[5].mapMax = 0; // flag to use adaptive
 
-// ─── DOM refs ─────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+//  STRATEGIES
+// ═══════════════════════════════════════════════════════════════
+const STRATS = [
+  { color: '#8b5cf6', name: 'Free Roaming',      phase: 'Exploration',  plain: 'Hawks fly freely — scanning the whole landscape for interesting zones.' },
+  { color: '#3b82f6', name: 'Group Drift',        phase: 'Exploration',  plain: 'Hawks drift toward the group center + rabbit — sharing what they found.' },
+  { color: '#10b981', name: 'Soft Encirclement',  phase: 'Exploitation', plain: 'Hawks gently circle the rabbit — narrowing the search zone.' },
+  { color: '#ef4444', name: 'Direct Attack',      phase: 'Exploitation', plain: 'Hawks charge straight at the rabbit — intense local search.' },
+  { color: '#f59e0b', name: 'Lévy Dive (Soft)',   phase: 'Exploitation', plain: 'Hawks make erratic dives inspired by how real raptors hunt — jumping unpredictably to escape local traps.' },
+  { color: '#ec4899', name: 'Lévy Dive (Hard)',   phase: 'Exploitation', plain: 'Aggressive Lévy jumps from the group center — last push before capture.' },
+];
+
+// ═══════════════════════════════════════════════════════════════
+//  DOM refs
+// ═══════════════════════════════════════════════════════════════
 const mainCanvas = document.getElementById('mainCanvas');
 const ctx = mainCanvas.getContext('2d');
 const convCanvas = document.getElementById('convCanvas');
-const convCtx = convCanvas.getContext('2d');
-const energyBar = document.getElementById('energyBar');
+const cvx = convCanvas.getContext('2d');
+const fnBar = document.querySelector('.fn-bar');
+const phaseBadge = document.getElementById('phaseBadge');
+const energyFill = document.getElementById('energyFill');
 const energyVal = document.getElementById('energyVal');
-const statIter = document.getElementById('statIter');
-const statBest = document.getElementById('statBest');
-const rabbitPos = document.getElementById('rabbitPos');
-const rabbitFit = document.getElementById('rabbitFit');
-const statusText = document.getElementById('statusText');
-const statusDot = document.getElementById('statusDot');
-const legendRows = document.getElementById('legendRows');
+const rabX = document.getElementById('rabX');
+const rabY = document.getElementById('rabY');
+const rabF = document.getElementById('rabF');
+const trueMin = document.getElementById('trueMin');
+const rabDist = document.getElementById('rabDist');
+const insightBox = document.getElementById('insightBox');
+const stratLegend = document.getElementById('stratLegend');
+const statRow = document.getElementById('statRow');
 const btnPlay = document.getElementById('btnPlay');
 const btnStep = document.getElementById('btnStep');
 const btnReset = document.getElementById('btnReset');
 const speedSlider = document.getElementById('speedSlider');
 const hawkSlider = document.getElementById('hawkSlider');
 const iterSlider = document.getElementById('iterSlider');
-const speedVal = document.getElementById('speedVal');
-const hawkVal = document.getElementById('hawkVal');
-const iterVal = document.getElementById('iterVal');
+const speedLbl = document.getElementById('speedLbl');
+const hawkLbl = document.getElementById('hawkLbl');
+const iterLbl = document.getElementById('iterLbl');
 
-// ─── Build legend rows ────────────────────────────────────────────────────────
-STRATEGIES.forEach((s, i) => {
-  const row = document.createElement('div');
-  row.className = 'legend-row';
-  row.id = `legRow${i}`;
-  row.innerHTML = `
-    <div class="legend-dot" style="background:${s.color};color:${s.color}"></div>
-    <div class="legend-label">${s.name}</div>
-    <div class="legend-count" id="legCnt${i}">0</div>`;
-  legendRows.appendChild(row);
+// ═══════════════════════════════════════════════════════════════
+//  Build UI elements
+// ═══════════════════════════════════════════════════════════════
+// Function cards
+FUNCTIONS.forEach((fn, i) => {
+  const card = document.createElement('div');
+  card.className = 'fn-card' + (i === 0 ? ' active' : '');
+  card.id = `fnCard${i}`;
+  card.innerHTML = `<div class="fn-name">${fn.name}</div><div class="fn-desc">${fn.desc}</div><div class="fn-min">${fn.minLabel}</div>`;
+  card.addEventListener('click', () => selectFunction(i));
+  fnBar.appendChild(card);
 });
 
-// ─── Math helpers ─────────────────────────────────────────────────────────────
+// Strategy legend rows
+STRATS.forEach((s, i) => {
+  const row = document.createElement('div');
+  row.className = 'strat-row';
+  row.id = `sRow${i}`;
+  row.innerHTML = `
+    <div class="strat-dot" style="background:${s.color}"></div>
+    <div class="strat-info">
+      <div class="strat-name">${s.name}</div>
+      <div class="strat-phase">${s.phase}</div>
+    </div>
+    <div class="strat-bar-wrap">
+      <div class="strat-bar-bg"><div class="strat-bar-fill" id="sBar${i}" style="background:${s.color};width:0%"></div></div>
+    </div>
+    <div class="strat-count" id="sCnt${i}">0</div>`;
+  stratLegend.appendChild(row);
+});
+
+// Stat pills
+const STAT_DEFS = [
+  { id: 'sIter', label: 'Iteration' },
+  { id: 'sBest', label: 'Best f' },
+  { id: 'sPhase', label: 'Phase' },
+];
+STAT_DEFS.forEach(s => {
+  const pill = document.createElement('div');
+  pill.className = 'stat-pill';
+  pill.innerHTML = `<div class="stat-val" id="${s.id}">—</div><div class="stat-lbl">${s.label}</div>`;
+  statRow.appendChild(pill);
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  Math helpers
+// ═══════════════════════════════════════════════════════════════
 const rand = () => Math.random();
-const randRange = (a, b) => a + rand() * (b - a);
-
-function rastrigin(x, y) {
-  return 20 + x*x - 10*Math.cos(2*Math.PI*x) + y*y - 10*Math.cos(2*Math.PI*y);
-}
-
-function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
-
-function levyFlight(beta = 1.5) {
-  const num = Math.sin(Math.PI * beta / 2) * gamma(1 + beta);
-  const den = gamma((1 + beta) / 2) * beta * Math.pow(2, (beta - 1) / 2);
-  const sigma = Math.pow(Math.abs(num / den), 1 / beta);
-  const u = randNorm() * sigma;
-  const v = Math.abs(randNorm());
-  return u / Math.pow(v, 1 / beta);
-}
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 function randNorm() {
-  // Box-Muller
   let u, v;
   do { u = rand(); } while (u === 0);
-  do { v = rand(); } while (v === 0);
-  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  return Math.sqrt(-2*Math.log(u)) * Math.cos(2*Math.PI*rand());
 }
 
-// Lanczos gamma approximation
-function gamma(z) {
+function gammaFn(z) {
   const g = 7;
-  const c = [0.99999999999980993,676.5203681218851,-1259.1392167224028,
-    771.32342877765313,-176.61502916214059,12.507343278686905,
-    -0.13857109526572012,9.9843695780195716e-6,1.5056327351493116e-7];
-  if (z < 0.5) return Math.PI / (Math.sin(Math.PI * z) * gamma(1 - z));
+  const c = [0.99999999999980993,676.5203681218851,-1259.1392167224028,771.32342877765313,-176.61502916214059,12.507343278686905,-0.13857109526572012,9.9843695780195716e-6,1.5056327351493116e-7];
+  if (z < 0.5) return Math.PI / (Math.sin(Math.PI*z) * gammaFn(1-z));
   z -= 1;
   let x = c[0];
-  for (let i = 1; i < g + 2; i++) x += c[i] / (z + i);
+  for (let i = 1; i < g+2; i++) x += c[i]/(z+i);
   const t = z + g + 0.5;
-  return Math.sqrt(2 * Math.PI) * Math.pow(t, z + 0.5) * Math.exp(-t) * x;
+  return Math.sqrt(2*Math.PI) * Math.pow(t, z+0.5) * Math.exp(-t) * x;
 }
 
-// ─── Heatmap offscreen canvas ─────────────────────────────────────────────────
-const hmapCanvas = document.createElement('canvas');
-hmapCanvas.width = hmapCanvas.height = HMAP_RES;
-const hmapCtx = hmapCanvas.getContext('2d');
+function levy(beta = 1.5) {
+  const num = Math.sin(Math.PI*beta/2) * gammaFn(1+beta);
+  const den = gammaFn((1+beta)/2) * beta * Math.pow(2, (beta-1)/2);
+  const sigma = Math.pow(Math.abs(num/den), 1/beta);
+  return (randNorm()*sigma) / Math.pow(Math.abs(randNorm()), 1/beta);
+}
 
-function buildHeatmap() {
-  const img = hmapCtx.createImageData(HMAP_RES, HMAP_RES);
+function hexRgb(h) {
+  return [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Heatmap
+// ═══════════════════════════════════════════════════════════════
+const HRES = 400;
+const hmOff = document.createElement('canvas');
+hmOff.width = hmOff.height = HRES;
+const hmCtx = hmOff.getContext('2d');
+
+let currentFnIdx = 0;
+
+function buildHeatmap(fnIdx) {
+  const f = FUNCTIONS[fnIdx];
+  const img = hmCtx.createImageData(HRES, HRES);
   const d = img.data;
-  const MAX_F = 80; // approx max in domain for normalization
-  for (let py = 0; py < HMAP_RES; py++) {
-    for (let px = 0; px < HMAP_RES; px++) {
-      const x = BOUNDS[0] + (px / (HMAP_RES - 1)) * (BOUNDS[1] - BOUNDS[0]);
-      const y = BOUNDS[0] + (py / (HMAP_RES - 1)) * (BOUNDS[1] - BOUNDS[0]);
-      const f = rastrigin(x, y);
-      const t = Math.min(f / MAX_F, 1);
-      // Color: dark navy at low f → teal/cyan at high f
-      const r = Math.round(t * 15 + (1 - t) * 4);
-      const g = Math.round(t * 45 + (1 - t) * 12);
-      const b = Math.round(t * 90 + (1 - t) * 35);
-      const idx = (py * HMAP_RES + px) * 4;
-      d[idx]   = r;
-      d[idx+1] = g;
-      d[idx+2] = b;
-      d[idx+3] = 255;
+  const B = f.bounds;
+  const range = B[1] - B[0];
+  // sample values
+  let minV = Infinity, maxV = -Infinity;
+  const vals = new Float32Array(HRES * HRES);
+  for (let py = 0; py < HRES; py++) {
+    for (let px = 0; px < HRES; px++) {
+      const x = B[0] + (px/(HRES-1)) * range;
+      const y = B[0] + (py/(HRES-1)) * range;
+      const v = f.fn(x, y);
+      vals[py*HRES+px] = v;
+      if (v < minV) minV = v;
+      if (v > maxV) maxV = v;
     }
   }
-  hmapCtx.putImageData(img, 0, 0);
+  const vRange = maxV - minV || 1;
+  for (let i = 0; i < HRES*HRES; i++) {
+    const t = Math.pow((vals[i]-minV)/vRange, 0.55); // gamma to emphasize lows
+    const c = f.colorMap(t);
+    d[i*4]   = c.r;
+    d[i*4+1] = c.g;
+    d[i*4+2] = c.b;
+    d[i*4+3] = 255;
+  }
+  hmCtx.putImageData(img, 0, 0);
 }
-buildHeatmap();
 
-// ─── State ────────────────────────────────────────────────────────────────────
+buildHeatmap(0);
+
+function selectFunction(i) {
+  currentFnIdx = i;
+  document.querySelectorAll('.fn-card').forEach((c,j) => c.classList.toggle('active', j===i));
+  buildHeatmap(i);
+  resetState();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Simulation state
+// ═══════════════════════════════════════════════════════════════
 let state = null;
 let running = true;
 let animId = null;
-let lastTime = 0;
-let accTime = 0;
+let lastTs = 0;
+let accMs = 0;
+let frameN = 0;
 
 function initState() {
+  const fn = FUNCTIONS[currentFnIdx];
   const N = parseInt(hawkSlider.value);
   const T = parseInt(iterSlider.value);
+  const B = fn.bounds;
   const hawks = Array.from({length: N}, () => {
-    const x = randRange(BOUNDS[0], BOUNDS[1]);
-    const y = randRange(BOUNDS[0], BOUNDS[1]);
-    return { x, y, fit: rastrigin(x, y), strategy: 0, trail: [] };
+    const x = B[0] + rand()*(B[1]-B[0]);
+    const y = B[0] + rand()*(B[1]-B[0]);
+    return { x, y, fit: fn.fn(x,y), strat: 0, trail: [], age: 0 };
   });
-  // Find best
-  let rabbit = hawks.reduce((b, h) => h.fit < b.fit ? h : b, hawks[0]);
-  rabbit = { x: rabbit.x, y: rabbit.y, fit: rabbit.fit };
-
+  let best = hawks.reduce((a,b) => b.fit<a.fit?b:a, hawks[0]);
   return {
-    hawks, rabbit, T, t: 0,
-    convergence: [],
-    strategyCounts: new Array(6).fill(0),
+    hawks, T,
+    rabbit: { x: best.x, y: best.y, fit: best.fit },
+    t: 0,
+    conv: [],
+    stratCounts: new Array(6).fill(0),
     lastE: 1,
     done: false,
+    fn,
   };
 }
 
-// ─── HHO iteration ───────────────────────────────────────────────────────────
-function hhoStep(s) {
+// ═══════════════════════════════════════════════════════════════
+//  HHO step
+// ═══════════════════════════════════════════════════════════════
+function step(s) {
   if (s.done) return;
-  const { hawks, T } = s;
-  const t = s.t;
+  const { hawks, t, T, rabbit, fn } = s;
+  const B = fn.bounds;
   const N = hawks.length;
-  const E0 = randRange(-1, 1);
-  const E = 2 * E0 * (1 - t / T);
+  const E0 = -1 + rand()*2;
+  const E = 2*E0*(1 - t/T);
   const absE = Math.abs(E);
   s.lastE = absE;
 
-  // Group mean
-  const mx = hawks.reduce((a, h) => a + h.x, 0) / N;
-  const my = hawks.reduce((a, h) => a + h.y, 0) / N;
-
+  const mx = hawks.reduce((a,h)=>a+h.x,0)/N;
+  const my = hawks.reduce((a,h)=>a+h.y,0)/N;
   const counts = new Array(6).fill(0);
 
   hawks.forEach(hawk => {
-    // Save trail
-    hawk.trail.push({ x: hawk.x, y: hawk.y });
-    if (hawk.trail.length > TRAIL_LEN) hawk.trail.shift();
+    hawk.trail.push({x:hawk.x, y:hawk.y});
+    if (hawk.trail.length > 12) hawk.trail.shift();
+    hawk.age++;
 
-    let nx = hawk.x, ny = hawk.y, strat;
-    const p = rand();
-    const q = rand();
-    const r1 = rand(), r2 = rand(), r3 = rand(), r4 = rand();
-    const randHawk = hawks[Math.floor(rand() * N)];
+    let nx=hawk.x, ny=hawk.y, strat;
+    const p = rand(), q = rand();
+    const rh = hawks[Math.floor(rand()*N)];
+    const J = 2*(1-rand());
 
     if (absE >= 1) {
-      // Exploration phase
       if (q >= 0.5) {
-        // Strategy 0: perch near random hawk
         strat = 0;
-        nx = randHawk.x - rand() * Math.abs(randHawk.x - 2 * rand() * hawk.x);
-        ny = randHawk.y - rand() * Math.abs(randHawk.y - 2 * rand() * hawk.y);
+        nx = rh.x - rand()*Math.abs(rh.x - 2*rand()*hawk.x);
+        ny = rh.y - rand()*Math.abs(rh.y - 2*rand()*hawk.y);
       } else {
-        // Strategy 1: rabbit + group mean
         strat = 1;
-        nx = (s.rabbit.x - mx) - rand() * (randRange(BOUNDS[0], BOUNDS[1]));
-        ny = (s.rabbit.y - my) - rand() * (randRange(BOUNDS[0], BOUNDS[1]));
+        nx = (rabbit.x - mx) - rand()*(B[0] + rand()*(B[1]-B[0]));
+        ny = (rabbit.y - my) - rand()*(B[0] + rand()*(B[1]-B[0]));
       }
     } else {
-      // Exploitation phase
-      const J = 2 * (1 - rand());
-      const dx = s.rabbit.x - hawk.x;
-      const dy = s.rabbit.y - hawk.y;
-
+      const dx = rabbit.x - hawk.x;
+      const dy = rabbit.y - hawk.y;
       if (p >= 0.5) {
         if (absE >= 0.5) {
-          // Strategy 2: Soft Besiege
           strat = 2;
-          nx = dx - E * Math.abs(J * s.rabbit.x - hawk.x);
-          ny = dy - E * Math.abs(J * s.rabbit.y - hawk.y);
+          nx = dx - E*Math.abs(J*rabbit.x - hawk.x);
+          ny = dy - E*Math.abs(J*rabbit.y - hawk.y);
         } else {
-          // Strategy 3: Hard Besiege
           strat = 3;
-          nx = s.rabbit.x - E * Math.abs(dx);
-          ny = s.rabbit.y - E * Math.abs(dy);
+          nx = rabbit.x - E*Math.abs(dx);
+          ny = rabbit.y - E*Math.abs(dy);
         }
       } else {
-        const lx = levyFlight(), ly = levyFlight();
+        const lx = levy(), ly = levy();
         if (absE >= 0.5) {
-          // Strategy 4: Soft Besiege + Lévy
           strat = 4;
-          const Yx = s.rabbit.x - E * Math.abs(J * s.rabbit.x - hawk.x);
-          const Yy = s.rabbit.y - E * Math.abs(J * s.rabbit.y - hawk.y);
-          const Zx = Yx + rand() * lx;
-          const Zy = Yy + rand() * ly;
-          const fY = rastrigin(clamp(Yx, ...BOUNDS), clamp(Yy, ...BOUNDS));
-          const fZ = rastrigin(clamp(Zx, ...BOUNDS), clamp(Zy, ...BOUNDS));
-          [nx, ny] = fY < fZ ? [Yx, Yy] : [Zx, Zy];
+          const Yx = rabbit.x - E*Math.abs(J*rabbit.x - hawk.x);
+          const Yy = rabbit.y - E*Math.abs(J*rabbit.y - hawk.y);
+          const Zx = Yx + rand()*lx, Zy = Yy + rand()*ly;
+          const fY = fn.fn(clamp(Yx,...B), clamp(Yy,...B));
+          const fZ = fn.fn(clamp(Zx,...B), clamp(Zy,...B));
+          [nx,ny] = fY<fZ ? [Yx,Yy] : [Zx,Zy];
         } else {
-          // Strategy 5: Hard Besiege + Lévy
           strat = 5;
-          const Yx = s.rabbit.x - E * Math.abs(J * s.rabbit.x - mx);
-          const Yy = s.rabbit.y - E * Math.abs(J * s.rabbit.y - my);
-          const Zx = Yx + rand() * lx;
-          const Zy = Yy + rand() * ly;
-          const fY = rastrigin(clamp(Yx, ...BOUNDS), clamp(Yy, ...BOUNDS));
-          const fZ = rastrigin(clamp(Zx, ...BOUNDS), clamp(Zy, ...BOUNDS));
-          [nx, ny] = fY < fZ ? [Yx, Yy] : [Zx, Zy];
+          const Yx = rabbit.x - E*Math.abs(J*rabbit.x - mx);
+          const Yy = rabbit.y - E*Math.abs(J*rabbit.y - my);
+          const Zx = Yx + rand()*lx, Zy = Yy + rand()*ly;
+          const fY = fn.fn(clamp(Yx,...B), clamp(Yy,...B));
+          const fZ = fn.fn(clamp(Zx,...B), clamp(Zy,...B));
+          [nx,ny] = fY<fZ ? [Yx,Yy] : [Zx,Zy];
         }
       }
     }
-
-    // Clamp & greedy
-    nx = clamp(nx, BOUNDS[0], BOUNDS[1]);
-    ny = clamp(ny, BOUNDS[0], BOUNDS[1]);
-    const nf = rastrigin(nx, ny);
-    if (nf < hawk.fit) {
-      hawk.x = nx; hawk.y = ny; hawk.fit = nf;
-    }
-    hawk.strategy = strat;
+    nx = clamp(nx, B[0], B[1]);
+    ny = clamp(ny, B[0], B[1]);
+    const nf = fn.fn(nx, ny);
+    if (nf < hawk.fit) { hawk.x=nx; hawk.y=ny; hawk.fit=nf; }
+    hawk.strat = strat;
     counts[strat]++;
   });
 
-  s.strategyCounts = counts;
-
-  // Update rabbit
-  hawks.forEach(h => {
-    if (h.fit < s.rabbit.fit) {
-      s.rabbit = { x: h.x, y: h.y, fit: h.fit };
-    }
-  });
-
-  s.convergence.push(s.rabbit.fit);
+  s.stratCounts = counts;
+  hawks.forEach(h => { if (h.fit < s.rabbit.fit) s.rabbit = {x:h.x, y:h.y, fit:h.fit}; });
+  s.conv.push(s.rabbit.fit);
   s.t++;
   if (s.t >= T) s.done = true;
 }
 
-// ─── Coordinate helpers ───────────────────────────────────────────────────────
-let CW, CH;
+// ═══════════════════════════════════════════════════════════════
+//  Canvas coordinate helpers
+// ═══════════════════════════════════════════════════════════════
+const PAD = 24;
+let CW = 0, CH = 0;
+
 function resize() {
-  const wrap = document.getElementById('canvas-wrap');
-  const availH = window.innerHeight - 34 - 42 - 80 - 30; // header, status, conv, gaps
-  const size = Math.min(wrap.clientWidth - 24, availH, 700);
-  mainCanvas.width = size;
-  mainCanvas.height = size;
-  CW = CH = size;
-  convCanvas.width = wrap.clientWidth - 24;
-  convCanvas.height = 80;
+  const wrap = mainCanvas.parentElement;
+  CW = mainCanvas.width = wrap.clientWidth;
+  CH = mainCanvas.height = wrap.clientHeight;
+  convCanvas.width = convCanvas.parentElement.clientWidth - 24;
+  convCanvas.height = convCanvas.parentElement.clientHeight - 26;
 }
 
-function toCanvas(x, y) {
-  const pad = 20;
-  const cx = pad + ((x - BOUNDS[0]) / (BOUNDS[1] - BOUNDS[0])) * (CW - 2*pad);
-  const cy = pad + ((y - BOUNDS[0]) / (BOUNDS[1] - BOUNDS[0])) * (CH - 2*pad);
+function toC(x, y) {
+  if (!state) return [0,0];
+  const B = state.fn.bounds;
+  const cx = PAD + ((x-B[0])/(B[1]-B[0])) * (CW-2*PAD);
+  const cy = PAD + ((y-B[0])/(B[1]-B[0])) * (CH-2*PAD);
   return [cx, cy];
 }
 
-// ─── Drawing ──────────────────────────────────────────────────────────────────
-function drawHeatmap() {
-  const pad = 20;
-  ctx.drawImage(hmapCanvas, pad, pad, CW - 2*pad, CH - 2*pad);
-}
+// ═══════════════════════════════════════════════════════════════
+//  Draw
+// ═══════════════════════════════════════════════════════════════
+function draw() {
+  if (!state) return;
+  ctx.clearRect(0, 0, CW, CH);
 
-function hexToRgb(hex) {
-  const r = parseInt(hex.slice(1,3),16);
-  const g = parseInt(hex.slice(3,5),16);
-  const b = parseInt(hex.slice(5,7),16);
-  return `${r},${g},${b}`;
-}
+  // Heatmap
+  ctx.drawImage(hmOff, PAD, PAD, CW-2*PAD, CH-2*PAD);
 
-function drawGlobalMin() {
-  const [cx, cy] = toCanvas(0, 0);
-  ctx.save();
-  ctx.setLineDash([4, 4]);
-  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  // Grid lines at 0
+  const B = state.fn.bounds;
+  const [zx, zy] = toC(0, 0);
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
   ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.arc(cx, cy, 12, 0, Math.PI*2);
-  ctx.stroke();
+  ctx.setLineDash([3,5]);
+  ctx.beginPath(); ctx.moveTo(zx,PAD); ctx.lineTo(zx,CH-PAD); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(PAD,zy); ctx.lineTo(CW-PAD,zy); ctx.stroke();
   ctx.setLineDash([]);
-  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+
+  // Axis labels
+  ctx.fillStyle = 'rgba(255,255,255,0.18)';
   ctx.font = '9px monospace';
-  ctx.fillText('(0,0)', cx + 14, cy - 4);
+  for (const v of [B[0], 0, B[1]]) {
+    const [cx] = toC(v, 0);
+    const [, cy] = toC(0, v);
+    ctx.fillText(v.toFixed(1), cx-6, CH-PAD+14);
+    ctx.fillText(v.toFixed(1), 2, cy+3);
+  }
+
+  // True global minima markers
+  drawMinima();
+
+  // Trails
+  state.hawks.forEach(h => drawTrail(h));
+
+  // Hawks
+  state.hawks.forEach(h => drawHawk(h));
+
+  // Rabbit
+  drawRabbit();
+
+  // Convergence
+  drawConv();
+}
+
+function drawMinima() {
+  const fn = state.fn;
+  const positions = fn.id === 'himmelblau'
+    ? [[3.0,2.0],[-2.805,3.131],[-3.779,-3.283],[3.584,-1.848]]
+    : fn.id === 'holder'
+    ? [[8.0551,9.6646],[-8.0551,9.6646],[8.0551,-9.6646],[-8.0551,-9.6646]]
+    : [fn.minPos];
+  ctx.save();
+  ctx.setLineDash([4,5]);
+  ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+  ctx.lineWidth = 1;
+  positions.forEach(([mx,my]) => {
+    const [cx,cy] = toC(mx,my);
+    ctx.beginPath(); ctx.arc(cx,cy,10,0,Math.PI*2); ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,0.18)';
+    ctx.font='9px monospace';
+    ctx.fillText('min',cx+12,cy-4);
+  });
+  ctx.setLineDash([]);
   ctx.restore();
 }
 
-function drawTrails(hawks) {
-  hawks.forEach(hawk => {
-    const trail = hawk.trail;
-    if (trail.length < 2) return;
-    const col = STRATEGIES[hawk.strategy].color;
-    const rgb = hexToRgb(col);
-    for (let i = 1; i < trail.length; i++) {
-      const alpha = (i / trail.length) * 0.45;
-      ctx.strokeStyle = `rgba(${rgb},${alpha})`;
-      ctx.lineWidth = 1.2;
-      const [x0, y0] = toCanvas(trail[i-1].x, trail[i-1].y);
-      const [x1, y1] = toCanvas(trail[i].x, trail[i].y);
-      ctx.beginPath();
-      ctx.moveTo(x0, y0);
-      ctx.lineTo(x1, y1);
-      ctx.stroke();
-    }
-  });
-}
-
-function drawHawks(hawks) {
-  hawks.forEach(hawk => {
-    const [cx, cy] = toCanvas(hawk.x, hawk.y);
-    const col = STRATEGIES[hawk.strategy].color;
-    const rgb = hexToRgb(col);
-    // Glow
-    const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, 10);
-    grd.addColorStop(0, `rgba(${rgb},0.7)`);
-    grd.addColorStop(1, `rgba(${rgb},0)`);
-    ctx.fillStyle = grd;
-    ctx.beginPath();
-    ctx.arc(cx, cy, 10, 0, Math.PI*2);
-    ctx.fill();
-    // Core
-    ctx.fillStyle = col;
-    ctx.beginPath();
-    ctx.arc(cx, cy, 3.5, 0, Math.PI*2);
-    ctx.fill();
-  });
-}
-
-function drawRabbit(rabbit, t) {
-  const [cx, cy] = toCanvas(rabbit.x, rabbit.y);
-  const pulse = 1 + 0.25 * Math.sin(t * 0.06);
-  const size = 8 * pulse;
-  // Outer glow
-  const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, size * 2.5);
-  grd.addColorStop(0, 'rgba(255,215,0,0.5)');
-  grd.addColorStop(1, 'rgba(255,215,0,0)');
-  ctx.fillStyle = grd;
-  ctx.beginPath();
-  ctx.arc(cx, cy, size * 2.5, 0, Math.PI*2);
-  ctx.fill();
-  // Diamond
-  ctx.fillStyle = '#ffd700';
-  ctx.strokeStyle = '#fff8';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(cx, cy - size);
-  ctx.lineTo(cx + size * 0.6, cy);
-  ctx.lineTo(cx, cy + size);
-  ctx.lineTo(cx - size * 0.6, cy);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  // Label
-  ctx.fillStyle = '#ffd700';
-  ctx.font = '10px monospace';
-  ctx.fillText(`f=${rabbit.fit.toFixed(3)}`, cx + 10, cy - 4);
-}
-
-function drawAxes() {
-  const pad = 20;
-  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-  ctx.lineWidth = 1;
-  ctx.setLineDash([2, 4]);
-  // x=0, y=0 gridlines
-  const [zx, zy] = toCanvas(0, 0);
-  ctx.beginPath(); ctx.moveTo(zx, pad); ctx.lineTo(zx, CH - pad); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(pad, zy); ctx.lineTo(CW - pad, zy); ctx.stroke();
-  ctx.setLineDash([]);
-  // Border ticks
-  ctx.fillStyle = 'rgba(255,255,255,0.2)';
-  ctx.font = '9px monospace';
-  const ticks = [-5, -2.5, 0, 2.5, 5];
-  ticks.forEach(v => {
-    const [tx] = toCanvas(v, 0);
-    const [, ty] = toCanvas(0, v);
-    ctx.fillText(v, tx - 6, CH - 4);
-    ctx.fillText(v, 2, ty + 3);
-  });
-}
-
-// ─── Convergence chart ────────────────────────────────────────────────────────
-function drawConvergence(conv) {
-  const W = convCanvas.width, H = convCanvas.height;
-  convCtx.clearRect(0, 0, W, H);
-  convCtx.fillStyle = '#07111f';
-  convCtx.fillRect(0, 0, W, H);
-  if (conv.length < 2) return;
-  const pad = 6;
-  const maxV = conv[0];
-  const minV = Math.max(0, Math.min(...conv));
-  const range = maxV - minV || 1;
-  convCtx.strokeStyle = '#3a6aaa';
-  convCtx.lineWidth = 1;
-  convCtx.strokeRect(pad, pad, W - 2*pad, H - 2*pad);
-  convCtx.beginPath();
-  convCtx.strokeStyle = '#4a9aff';
-  convCtx.lineWidth = 1.5;
-  conv.forEach((v, i) => {
-    const x = pad + (i / (conv.length - 1)) * (W - 2*pad);
-    const y = pad + ((maxV - v) / range) * (H - 2*pad);
-    i === 0 ? convCtx.moveTo(x, y) : convCtx.lineTo(x, y);
-  });
-  convCtx.stroke();
-  // Labels
-  convCtx.fillStyle = '#3a6a9a';
-  convCtx.font = '9px monospace';
-  convCtx.fillText('Convergence', pad + 2, pad + 10);
-  convCtx.fillText(`${conv[conv.length-1].toFixed(4)}`, W - 60, pad + 10);
-}
-
-// ─── Status messages ──────────────────────────────────────────────────────────
-function getStatusMessage(s) {
-  if (!s) return 'Initializing…';
-  if (s.done) return `Algorithm converged after ${s.T} iterations. Best solution: f(${s.rabbit.x.toFixed(3)}, ${s.rabbit.y.toFixed(3)}) = ${s.rabbit.fit.toFixed(4)}`;
-  const absE = s.lastE;
-  const dom = s.strategyCounts.indexOf(Math.max(...s.strategyCounts));
-  if (absE >= 1) {
-    return `Exploration phase (|E|=${absE.toFixed(2)}≥1): hawks scout the full search space, looking for promising regions.`;
-  } else if (absE >= 0.5) {
-    return `Transition phase (|E|=${absE.toFixed(2)}): hawks begin closing in, mixing soft encirclement with Lévy-flight dives.`;
-  } else {
-    return `Exploitation phase (|E|=${absE.toFixed(2)}<0.5): hawks converge hard on the rabbit — ${STRATEGIES[dom].name} is dominant.`;
+function drawTrail(hawk) {
+  const trail = hawk.trail;
+  if (trail.length < 2) return;
+  const [r,g,b] = hexRgb(STRATS[hawk.strat].color);
+  for (let i = 1; i < trail.length; i++) {
+    const alpha = (i/trail.length)*0.4;
+    ctx.strokeStyle = `rgba(${r},${g},${b},${alpha})`;
+    ctx.lineWidth = 1.2;
+    const [x0,y0] = toC(trail[i-1].x, trail[i-1].y);
+    const [x1,y1] = toC(trail[i].x, trail[i].y);
+    ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1,y1); ctx.stroke();
   }
 }
 
-// ─── Animation loop ───────────────────────────────────────────────────────────
-let frameCount = 0;
+function drawHawk(hawk) {
+  const [cx,cy] = toC(hawk.x, hawk.y);
+  const [r,g,b] = hexRgb(STRATS[hawk.strat].color);
+  // Glow
+  const grd = ctx.createRadialGradient(cx,cy,0,cx,cy,12);
+  grd.addColorStop(0, `rgba(${r},${g},${b},0.6)`);
+  grd.addColorStop(1, `rgba(${r},${g},${b},0)`);
+  ctx.fillStyle = grd;
+  ctx.beginPath(); ctx.arc(cx,cy,12,0,Math.PI*2); ctx.fill();
+  // Core
+  ctx.fillStyle = STRATS[hawk.strat].color;
+  ctx.beginPath(); ctx.arc(cx,cy,3.5,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+  ctx.lineWidth = 0.5;
+  ctx.stroke();
+}
 
-function frame(ts) {
-  animId = requestAnimationFrame(frame);
-  if (!state) return;
+function drawRabbit() {
+  const { rabbit } = state;
+  const [cx,cy] = toC(rabbit.x, rabbit.y);
+  const pulse = 1 + 0.22*Math.sin(frameN * 0.08);
+  const sz = 9 * pulse;
+  // Outer glow
+  const grd = ctx.createRadialGradient(cx,cy,0,cx,cy,sz*3);
+  grd.addColorStop(0,'rgba(251,191,36,0.45)');
+  grd.addColorStop(1,'rgba(251,191,36,0)');
+  ctx.fillStyle = grd;
+  ctx.beginPath(); ctx.arc(cx,cy,sz*3,0,Math.PI*2); ctx.fill();
+  // Diamond
+  ctx.fillStyle='#fbbf24';
+  ctx.strokeStyle='rgba(255,255,255,0.6)';
+  ctx.lineWidth=1.2;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy-sz);
+  ctx.lineTo(cx+sz*0.62, cy);
+  ctx.lineTo(cx, cy+sz);
+  ctx.lineTo(cx-sz*0.62, cy);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  // Label
+  ctx.fillStyle='#fbbf24';
+  ctx.font='bold 10px monospace';
+  ctx.fillText(`f=${rabbit.fit.toFixed(4)}`, cx+14, cy-6);
+}
 
+function drawConv() {
+  const W = convCanvas.width, H = convCanvas.height;
+  cvx.clearRect(0,0,W,H);
+  cvx.fillStyle='#06101e';
+  cvx.fillRect(0,0,W,H);
+  const conv = state.conv;
+  if (conv.length < 2) return;
+  const p = 4;
+  const maxV = conv[0];
+  const minV = Math.min(...conv);
+  const range = maxV - minV || 1;
+  // Fill area
+  cvx.beginPath();
+  conv.forEach((v,i) => {
+    const x = p + (i/(conv.length-1))*(W-2*p);
+    const y = p + ((maxV-v)/range)*(H-2*p);
+    i===0 ? cvx.moveTo(x,y) : cvx.lineTo(x,y);
+  });
+  cvx.lineTo(p+(W-2*p), H-p);
+  cvx.lineTo(p, H-p);
+  cvx.closePath();
+  cvx.fillStyle='rgba(59,130,246,0.1)';
+  cvx.fill();
+  // Line
+  cvx.beginPath();
+  conv.forEach((v,i) => {
+    const x = p + (i/(conv.length-1))*(W-2*p);
+    const y = p + ((maxV-v)/range)*(H-2*p);
+    i===0 ? cvx.moveTo(x,y) : cvx.lineTo(x,y);
+  });
+  cvx.strokeStyle='#3b82f6';
+  cvx.lineWidth=1.5;
+  cvx.stroke();
+  // Labels
+  cvx.fillStyle='rgba(59,130,246,0.5)';
+  cvx.font='9px monospace';
+  cvx.fillText(`Start: ${conv[0].toFixed(3)}`, p+2, p+10);
+  cvx.fillStyle='#60a5fa';
+  cvx.fillText(`Now: ${conv[conv.length-1].toFixed(4)}`, W-70, p+10);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  UI updates
+// ═══════════════════════════════════════════════════════════════
+function getInsight(s) {
+  if (!s) return ['explore', 'Initializing…'];
+  if (s.done) {
+    return ['exploit', `✅ Done! After ${s.T} iterations, the best solution found is f(${s.rabbit.x.toFixed(3)}, ${s.rabbit.y.toFixed(3)}) = ${s.rabbit.fit.toFixed(4)}. The hawks have captured the rabbit.`];
+  }
+  const e = s.lastE;
+  const dom = s.stratCounts.indexOf(Math.max(...s.stratCounts));
+  const domStrat = STRATS[dom];
+  if (e >= 1) {
+    return ['explore', `🔍 Exploration phase — hawks are spread across the landscape, testing many locations. The dominant behavior right now is "${domStrat.name}": ${domStrat.plain}`];
+  } else if (e >= 0.5) {
+    return ['transit', `⚡ Transition phase — energy is dropping. Hawks are starting to focus, but still making exploratory dives. "${domStrat.name}" is leading: ${domStrat.plain}`];
+  } else {
+    return ['exploit', `🎯 Exploitation phase — hawks are converging hard on the best zone. "${domStrat.name}" is dominant: ${domStrat.plain}`];
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Animation loop
+// ═══════════════════════════════════════════════════════════════
+function loop(ts) {
+  animId = requestAnimationFrame(loop);
   const spd = parseInt(speedSlider.value);
-  const msPerStep = 1200 / spd;
-  accTime += ts - (lastTime || ts);
-  lastTime = ts;
-
-  if (running && !state.done && accTime >= msPerStep) {
-    accTime = 0;
-    hhoStep(state);
+  const msPerStep = 1000 / spd;
+  const dt = ts - (lastTs||ts);
+  lastTs = ts;
+  accMs += dt;
+  if (running && state && !state.done && accMs >= msPerStep) {
+    accMs = 0;
+    step(state);
     updateUI();
   }
-
-  frameCount++;
-  render();
+  frameN++;
+  draw();
 }
 
-function render() {
-  if (!state) return;
-  ctx.clearRect(0, 0, CW, CH);
-  drawHeatmap();
-  drawAxes();
-  drawGlobalMin();
-  drawTrails(state.hawks);
-  drawHawks(state.hawks);
-  drawRabbit(state.rabbit, frameCount);
-  drawConvergence(state.convergence);
+function resetState() {
+  state = initState();
+  accMs = 0;
+  running = true;
+  btnPlay.innerHTML = '<span class="btn-icon">⏸</span>Pause';
+  btnPlay.className = 'btn primary';
+  updateUI();
 }
 
-function updateUI() {
-  if (!state) return;
-  // Energy bar
-  const e = Math.min(state.lastE, 1);
-  energyBar.style.width = `${e * 100}%`;
-  energyBar.style.background = e > 0.5 ? '#4a80c8' : e > 0.2 ? '#c87a20' : '#c83030';
-  energyVal.textContent = e.toFixed(3);
-  // Stats
-  statIter.textContent = state.t;
-  statBest.textContent = state.rabbit.fit.toFixed(4);
-  const dist = Math.sqrt(state.rabbit.x**2 + state.rabbit.y**2);
-  rabbitPos.textContent = `Rabbit: (${state.rabbit.x.toFixed(3)}, ${state.rabbit.y.toFixed(3)})`;
-  rabbitFit.textContent = `Distance to (0,0): ${dist.toFixed(4)}`;
-  // Legend
-  const total = state.strategyCounts.reduce((a,b)=>a+b,0)||1;
-  const domIdx = state.strategyCounts.indexOf(Math.max(...state.strategyCounts));
-  STRATEGIES.forEach((_, i) => {
-    document.getElementById(`legCnt${i}`).textContent = state.strategyCounts[i];
-    document.getElementById(`legRow${i}`).className = 'legend-row' + (i === domIdx ? ' dominant' : '');
-  });
-  // Status
-  statusText.textContent = getStatusMessage(state);
-  statusDot.className = 'status-dot' + (running && !state.done ? '' : ' paused');
-}
-
-// ─── Controls ─────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+//  Controls
+// ═══════════════════════════════════════════════════════════════
 btnPlay.addEventListener('click', () => {
   if (state?.done) { resetState(); return; }
   running = !running;
-  btnPlay.textContent = running ? '⏸ Pause' : '▶ Play';
-  btnPlay.classList.toggle('active', running);
-  statusDot.className = 'status-dot' + (running ? '' : ' paused');
-  if (running) accTime = 0;
+  btnPlay.innerHTML = running ? '<span class="btn-icon">⏸</span>Pause' : '<span class="btn-icon">▶</span>Play';
+  if (running) accMs = 0;
 });
 
 btnStep.addEventListener('click', () => {
   if (!state || state.done) return;
   running = false;
-  btnPlay.textContent = '▶ Play';
-  btnPlay.classList.remove('active');
-  hhoStep(state);
-  updateUI();
+  btnPlay.innerHTML = '<span class="btn-icon">▶</span>Play';
+  step(state); updateUI();
 });
 
 btnReset.addEventListener('click', resetState);
 
-function resetState() {
+speedSlider.addEventListener('input', () => { speedLbl.textContent = speedSlider.value; });
+hawkSlider.addEventListener('input', () => { hawkLbl.textContent = hawkSlider.value; resetState(); });
+iterSlider.addEventListener('input', () => { iterLbl.textContent = iterSlider.value; resetState(); });
+
+document.getElementById('startBtn').addEventListener('click', () => {
+  document.getElementById('intro').style.display = 'none';
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  Init
+// ═══════════════════════════════════════════════════════════════
+function init() {
+  resize();
   state = initState();
-  running = true;
-  btnPlay.textContent = '⏸ Pause';
-  btnPlay.classList.add('active');
-  accTime = 0;
-  lastTime = 0;
   updateUI();
+  requestAnimationFrame(loop);
 }
 
-speedSlider.addEventListener('input', () => { speedVal.textContent = speedSlider.value; });
-hawkSlider.addEventListener('input', () => { hawkVal.textContent = hawkSlider.value; resetState(); });
-iterSlider.addEventListener('input', () => { iterVal.textContent = iterSlider.value; resetState(); });
+window.addEventListener('resize', () => { resize(); });
+init();
 
-// ─── Init ─────────────────────────────────────────────────────────────────────
-window.addEventListener('resize', () => { resize(); buildHeatmap(); });
-resize();
-state = initState();
-updateUI();
-requestAnimationFrame(frame);
+function updateUI() {
+  if (!state) return;
+  const s = state;
+  const e = Math.min(s.lastE, 1);
+  energyFill.style.width = (e*100)+'%';
+  energyFill.style.background = e>0.6?'#3b82f6':e>0.3?'#f59e0b':'#ef4444';
+  energyVal.textContent = `|E| = ${e.toFixed(3)}`;
+  if (e>=1){phaseBadge.className='phase-badge explore';phaseBadge.textContent='EXPLORING';}
+  else if(e>=0.5){phaseBadge.className='phase-badge transit';phaseBadge.textContent='TRANSITIONING';}
+  else{phaseBadge.className='phase-badge exploit';phaseBadge.textContent='EXPLOITING';}
+  rabX.textContent=s.rabbit.x.toFixed(5);
+  rabY.textContent=s.rabbit.y.toFixed(5);
+  rabF.textContent=s.rabbit.fit.toFixed(6);
+  const fn=s.fn;
+  trueMin.textContent=fn.minLabel;
+  const[mx,my]=fn.minPos;
+  const dist=Math.sqrt((s.rabbit.x-mx)**2+(s.rabbit.y-my)**2);
+  rabDist.textContent=dist.toFixed(5);
+  document.getElementById('sIter').textContent=`${s.t}/${s.T}`;
+  document.getElementById('sBest').textContent=s.rabbit.fit.toFixed(4);
+  document.getElementById('sPhase').textContent=e>=1?'🔍':e>=0.5?'⚡':'🎯';
+  const total=s.stratCounts.reduce((a,b)=>a+b,0)||1;
+  const domIdx=s.stratCounts.indexOf(Math.max(...s.stratCounts));
+  STRATS.forEach((_,i)=>{
+    const cnt=s.stratCounts[i];
+    document.getElementById(`sCnt${i}`).textContent=cnt;
+    document.getElementById(`sBar${i}`).style.width=(cnt/total*100)+'%';
+    document.getElementById(`sRow${i}`).className='strat-row'+(i===domIdx?' dominant':'');
+  });
+  const[phase,text]=getInsight(s);
+  insightBox.className=`insight-box ${phase}`;
+  insightBox.textContent=text;
+}
 </script>
 </body>
 </html>
